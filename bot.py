@@ -86,11 +86,11 @@ class LeaderboardBot(discord.Client):
                         logger.error(f"API request failed with status {response.status}")
                         logger.error(f"Response text: {response_text}")
                     return None
-        except Exception as e:
-            logger.error(f"Error fetching data: {str(e)}")
-            logger.error(f"API_BASE_URL: {API_BASE_URL}")
-            logger.error(f"AFFILIATE_CODE: {AFFILIATE_CODE}")
-            return None
+            except Exception as e:
+                logger.error(f"Error fetching data: {str(e)}")
+                logger.error(f"API_BASE_URL: {API_BASE_URL}")
+                logger.error(f"AFFILIATE_CODE: {AFFILIATE_CODE}")
+                return None
 
     def create_leaderboard_embed(self, data: list, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
