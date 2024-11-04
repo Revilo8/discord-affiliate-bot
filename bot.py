@@ -32,15 +32,18 @@ if not all([TOKEN, API_KEY, API_BASE_URL, AFFILIATE_CODE]):
 
 class LeaderboardBot(discord.Client):
     def __init__(self):
-        super().__init__(intents=discord.Intents.default())
+        intents = discord.Intents.default()
+        intents.message_content = True
+        super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.active_leaderboards = {}
         logger.info("Bot initialized")
 
     async def setup_hook(self):
         try:
-            self.update_leaderboards.start()
+            # Force sync commands to all guilds
             await self.tree.sync()
+            self.update_leaderboards.start()
             logger.info("Slash commands synced and update task started")
         except Exception as e:
             logger.error(f"Setup hook error: {e}")
