@@ -68,18 +68,29 @@ class LeaderboardBot(discord.Client):
             }
             
             try:
+                logger.info(f"Making API request to: {API_BASE_URL}/affiliate/external")
+                logger.info(f"With params: {params}")
+                logger.info(f"Headers present: {bool(headers.get('Authorization'))}")
+                
                 async with session.get(f"{API_BASE_URL}/affiliate/external", 
                                      headers=headers, 
                                      params=params) as response:
+                    logger.info(f"API Response Status: {response.status}")
+                    
                     if response.status == 200:
                         data = await response.json()
                         logger.info("Successfully fetched affiliate data")
                         return data
-                    logger.error(f"API request failed with status {response.status}")
+                    else:
+                        response_text = await response.text()
+                        logger.error(f"API request failed with status {response.status}")
+                        logger.error(f"Response text: {response_text}")
                     return None
-            except Exception as e:
-                logger.error(f"Error fetching data: {e}")
-                return None
+        except Exception as e:
+            logger.error(f"Error fetching data: {str(e)}")
+            logger.error(f"API_BASE_URL: {API_BASE_URL}")
+            logger.error(f"AFFILIATE_CODE: {AFFILIATE_CODE}")
+            return None
 
     def create_leaderboard_embed(self, data: list, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
