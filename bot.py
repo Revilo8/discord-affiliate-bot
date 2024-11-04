@@ -57,22 +57,24 @@ class LeaderboardBot(discord.Client):
         start_time = int((datetime.datetime.now() - datetime.timedelta(days=days)).timestamp() * 1000)
         
         async with aiohttp.ClientSession() as session:
-            headers = {"apikey": API_KEY}
+            headers = {'x-apikey': API_KEY}
             params = {
-                "code": AFFILIATE_CODE,
-                "gt": start_time,
-                "lt": current_time,
-                "by": "createdAt",
-                "sort": "desc",
-                "take": 1000
+                'code': AFFILIATE_CODE,
+                'gt': str(start_time),
+                'lt': str(current_time),
+                'by': 'createdAt',
+                'sort': 'desc',
+                'take': '1000',
+                'skip': '0'  # Changed to 0 as per example
             }
             
             try:
-                logger.info(f"Making API request to: {API_BASE_URL}/affiliate/external")
+                url = f"{API_BASE_URL}/affiliate/external"
+                logger.info(f"Making API request to: {url}")
                 logger.info(f"With params: {params}")
-                logger.info(f"Headers present: {bool(headers.get('Authorization'))}")
+                logger.info(f"Headers present: {bool(headers.get('x-apikey'))}")
                 
-                async with session.get(f"{API_BASE_URL}/affiliate/external", 
+                async with session.get(url, 
                                      headers=headers, 
                                      params=params) as response:
                     logger.info(f"API Response Status: {response.status}")
@@ -88,8 +90,6 @@ class LeaderboardBot(discord.Client):
                     return None
             except Exception as e:
                 logger.error(f"Error fetching data: {str(e)}")
-                logger.error(f"API_BASE_URL: {API_BASE_URL}")
-                logger.error(f"AFFILIATE_CODE: {AFFILIATE_CODE}")
                 return None
 
     def create_leaderboard_embed(self, data: list, days: int, end_date: datetime.datetime) -> discord.Embed:
