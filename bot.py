@@ -34,6 +34,8 @@ class LeaderboardBot(discord.Client):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.members = True
+        intents.presences = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.active_leaderboards = {}
