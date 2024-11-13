@@ -171,7 +171,7 @@ class LeaderboardBot(discord.Client):
             logger.error(f"Data that caused error: {data[:100]}")  # Show first 100 chars
             raise
 
-    @tasks.loop(minutes=30)
+    @tasks.loop(minutes=5)
     async def update_leaderboards(self):
         logger.info("Starting leaderboard updates")
         current_time = datetime.datetime.now()
