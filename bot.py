@@ -233,35 +233,38 @@ class LeaderboardBot(discord.Client):
         await self.wait_until_ready()
         logger.info("Bot is ready to start updating leaderboards")
 
-    @client.tree.command(name="leaderboard", description="Start a leaderboard event for specified number of days")
-    async def leaderboard(interaction: discord.Interaction, days: int):
-        logger.info(f"Leaderboard command received from {interaction.user} for {days} days")
-        try:
-            if days <= 0 or days > 30:
-                await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
-                return
+# Create bot instance
+client = LeaderboardBot()
 
-            if interaction.channel_id in client.active_leaderboards:
-                await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
-                return
+@client.tree.command(name="leaderboard", description="Start a leaderboard event for specified number of days")
+async def leaderboard(interaction: discord.Interaction, days: int):
+    logger.info(f"Leaderboard command received from {interaction.user} for {days} days")
+    try:
+        if days <= 0 or days > 30:
+            await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
+            return
 
-            await interaction.response.defer()
+        if interaction.channel_id in client.active_leaderboards:
+            await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
+            return
 
-            data = await client.fetch_affiliate_data(days)
-            if not data:
-                await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
-                return
+        await interaction.response.defer()
 
-            end_date = datetime.datetime.now() + datetime.timedelta(days=days)
-            embed = client.create_leaderboard_embed(data, days, end_date)
-            
-            message = await interaction.followup.send(embed=embed)
-            client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
-            logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
+        data = await client.fetch_affiliate_data(days)
+        if not data:
+            await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
+            return
+
+        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        embed = client.create_leaderboard_embed(data, days, end_date)
         
-        except Exception as e:
-            logger.error(f"Error processing leaderboard command: {e}")
-            await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
+        message = await interaction.followup.send(embed=embed)
+        client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
+        logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
+    
+    except Exception as e:
+        logger.error(f"Error processing leaderboard command: {e}")
+        await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
 @client.event
 async def on_ready():
