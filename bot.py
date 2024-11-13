@@ -177,18 +177,18 @@ class LeaderboardBot(discord.Client):
         current_time = datetime.datetime.now()
         channels_to_remove = []
 
-        # Check and clean up channels we can't access
-        channels_to_check = list(self.active_leaderboards.items())
-        for channel_id, (message, end_date, days) in channels_to_check:
+        # Check and update each channel
+        for channel_id, (message, end_date, days) in list(self.active_leaderboards.items()):
             channel = self.get_channel(channel_id)
             
-            # Remove leaderboard if channel is not accessible or bot lacks permissions
+            # Remove leaderboard if channel is not accessible
             if not channel or not channel.permissions_for(channel.guild.me).send_messages:
                 logger.warning(f"Removing leaderboard from channel {channel_id} due to missing permissions")
                 channels_to_remove.append(channel_id)
                 continue
 
             try:
+                # Check if leaderboard has ended
                 if current_time > end_date:
                     channels_to_remove.append(channel_id)
                     try:
@@ -201,6 +201,7 @@ class LeaderboardBot(discord.Client):
                             pass
                     continue
 
+                # Update leaderboard
                 data = await self.fetch_affiliate_data(days)
                 if data:
                     embed = self.create_leaderboard_embed(data, days, end_date)
@@ -208,7 +209,8 @@ class LeaderboardBot(discord.Client):
                         # Try to edit existing message
                         await message.edit(embed=embed)
                         logger.info(f"Updated leaderboard in channel {channel_id}")
-                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+                        logger.error(f"Failed to edit message in {channel_id}, trying to send new one: {str(e)}")
                         # If editing fails, try to send a new message
                         try:
                             new_message = await channel.send(embed=embed)
@@ -230,20 +232,6 @@ class LeaderboardBot(discord.Client):
             if channel_id in self.active_leaderboards:
                 del self.active_leaderboards[channel_id]
                 logger.info(f"Removed leaderboard from channel {channel_id}")
-
-        # Recreate messages that had token errors
-        for channel_id, days, end_date in channels_to_recreate:
-            try:
-                channel = self.get_channel(channel_id)
-                if channel:
-                    data = await self.fetch_affiliate_data(days)
-                    if data:
-                        embed = self.create_leaderboard_embed(data, days, end_date)
-                        new_message = await channel.send(embed=embed)
-                        self.active_leaderboards[channel_id] = (new_message, end_date, days)
-                        logger.info(f"Recreated leaderboard message in channel {channel_id}")
-            except Exception as e:
-                logger.error(f"Failed to recreate message in channel {channel_id}: {e}")
 
     @update_leaderboards.before_loop
     async def before_update_leaderboards(self):
