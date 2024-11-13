@@ -265,6 +265,7 @@ async def leaderboard(interaction: discord.Interaction, days: int):
             await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
             return
 
+        # Acknowledge the interaction quickly
         await interaction.response.defer()
 
         data = await client.fetch_affiliate_data(days)
@@ -275,8 +276,12 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         end_date = datetime.datetime.now() + datetime.timedelta(days=days)
         embed = client.create_leaderboard_embed(data, days, end_date)
         
-        message = await interaction.followup.send(embed=embed)
+        # Send as a regular channel message instead of an interaction followup
+        message = await interaction.channel.send(embed=embed)
         client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
+        
+        # Send a temporary confirmation
+        await interaction.followup.send("Leaderboard started! It will update every 30 minutes.", ephemeral=True)
         logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
     
     except Exception as e:
