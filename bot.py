@@ -53,8 +53,8 @@ class LeaderboardBot(discord.Client):
 
     async def fetch_affiliate_data(self, days: int = 7) -> Optional[list]:
         logger.info(f"Fetching affiliate data for {days} days")
-        current_time = int(datetime.datetime.now().timestamp() * 1000)
-        start_time = int((datetime.datetime.now() - datetime.timedelta(days=days)).timestamp() * 1000)
+        current_time = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+        start_time = int((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).timestamp() * 1000)
         
         async with aiohttp.ClientSession() as session:
             headers = {
@@ -87,6 +87,8 @@ class LeaderboardBot(discord.Client):
                     if response.status == 200:
                         data = await response.json()
                         logger.info("Successfully fetched affiliate data")
+                        logger.info(f"Data type: {type(data)}")
+                        logger.info(f"Data structure: {data[:100] if isinstance(data, list) else data}")  # Show first 100 chars
                         return data
                     else:
                         response_text = await response.text()
@@ -102,15 +104,41 @@ class LeaderboardBot(discord.Client):
 
     def create_leaderboard_embed(self, data: list, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
+            logger.info(f"Creating embed with data type: {type(data)}")
+            # Convert string to dictionary if needed
+            if isinstance(data, str):
+                import json
+                data = json.loads(data)
+            
+            # Ensure data is a list
+            if not isinstance(data, list):
+                data = [data]
+                
             # Aggregate user data
             user_stats = {}
             for entry in data:
+                if isinstance(entry, str):
+                    continue  # Skip if entry is a string
+                    
                 username = entry.get('username', 'Unknown')
+                wager = float(entry.get('wager', 0))
+                deposit = float(entry.get('deposit', 0))
+                
                 if username not in user_stats:
                     user_stats[username] = {'wager': 0, 'deposits': 0}
-                user_stats[username]['wager'] += float(entry.get('wager', 0))
-                user_stats[username]['deposits'] += float(entry.get('deposit', 0))
+                user_stats[username]['wager'] += wager
+                user_stats[username]['deposits'] += deposit
             
+            # If no valid data was processed
+            if not user_stats:
+                embed = discord.Embed(
+                    title="🏆 Affiliate Leaderboard 🏆",
+                    description="No data available for the specified time period",
+                    color=discord.Color.gold(),
+                    timestamp=datetime.datetime.now()
+                )
+                return embed
+                
             # Sort users by wager
             top_users = sorted(user_stats.items(), 
                              key=lambda x: x[1]['wager'], 
@@ -150,6 +178,7 @@ class LeaderboardBot(discord.Client):
             return embed
         except Exception as e:
             logger.error(f"Error creating embed: {e}")
+            logger.error(f"Data that caused error: {data[:100]}")  # Show first 100 chars
             raise
 
     @tasks.loop(minutes=5)
