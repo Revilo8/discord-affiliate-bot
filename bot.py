@@ -63,8 +63,8 @@ class LeaderboardBot(discord.Client):
             }
             params = {
                 'code': AFFILIATE_CODE,
-                'gt': start_time,
-                'lt': current_time,
+                'gt': str(start_time),
+                'lt': str(current_time),
                 'by': 'createdAt',
                 'sort': 'desc',
                 'take': '1000',
@@ -73,9 +73,11 @@ class LeaderboardBot(discord.Client):
             
             try:
                 url = f"{API_BASE_URL}/affiliate/external"
-                logger.info(f"Making API request to: {url}")
-                logger.info(f"With params: {params}")
-                logger.info(f"Headers present: {bool(headers.get('x-apikey'))}")
+
+                # Log exact request details
+                full_params = "&".join([f"{k}={v}" for k, v in params.items()])
+                logger.info(f"Full request URL would be: {url}?{full_params}")
+                logger.info(f"API Key length: {len(API_KEY)}")
                 
                 async with session.get(url, 
                                      headers=headers, 
@@ -90,6 +92,9 @@ class LeaderboardBot(discord.Client):
                         response_text = await response.text()
                         logger.error(f"API request failed with status {response.status}")
                         logger.error(f"Response text: {response_text}")
+                        if days > 1:
+                            logger.info("Trying with a smaller date range...")
+                            return await self.fetch_affiliate_data(days=1)
                     return None
             except Exception as e:
                 logger.error(f"Error fetching data: {str(e)}")
