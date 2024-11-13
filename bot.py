@@ -102,24 +102,14 @@ class LeaderboardBot(discord.Client):
                 logger.error(f"Error fetching data: {str(e)}")
                 return None
 
-    def create_leaderboard_embed(self, data: list, days: int, end_date: datetime.datetime) -> discord.Embed:
+    def create_leaderboard_embed(self, data: dict, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
-            logger.info(f"Creating embed with data type: {type(data)}")
-            # Convert string to dictionary if needed
-            if isinstance(data, str):
-                import json
-                data = json.loads(data)
-            
-            # Ensure data is a list
-            if not isinstance(data, list):
-                data = [data]
+            # Extract the actual data array from the response
+            entries = data.get('data', [])
                 
             # Aggregate user data
             user_stats = {}
-            for entry in data:
-                if isinstance(entry, str):
-                    continue  # Skip if entry is a string
-                    
+            for entry in entries:
                 username = entry.get('username', 'Unknown')
                 wager = float(entry.get('wager', 0))
                 deposit = float(entry.get('deposit', 0))
