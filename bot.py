@@ -57,11 +57,14 @@ class LeaderboardBot(discord.Client):
         start_time = int((datetime.datetime.now() - datetime.timedelta(days=days)).timestamp() * 1000)
         
         async with aiohttp.ClientSession() as session:
-            headers = {'x-apikey': API_KEY}
+            headers = {
+                "accept": "application/json",
+                "x-apikey": API_KEY
+            }
             params = {
                 'code': AFFILIATE_CODE,
-                'gt': str(start_time),
-                'lt': str(current_time),
+                'gt': start_time,
+                'lt': current_time,
                 'by': 'createdAt',
                 'sort': 'desc',
                 'take': '1000',
