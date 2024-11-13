@@ -284,34 +284,34 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
 @client.tree.command(name="restartleaderboard", description="Force start a new leaderboard in this channel")
-    async def restartleaderboard(interaction: discord.Interaction, days: int):
-        logger.info(f"Restart leaderboard command received from {interaction.user} for {days} days")
-        try:
-            if days <= 0 or days > 30:
-                await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
-                return
+async def restartleaderboard(interaction: discord.Interaction, days: int):
+    logger.info(f"Restart leaderboard command received from {interaction.user} for {days} days")
+    try:
+        if days <= 0 or days > 30:
+            await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
+            return
 
-            # Remove existing leaderboard if any
-            if interaction.channel_id in client.active_leaderboards:
-                del client.active_leaderboards[interaction.channel_id]
+        # Remove existing leaderboard if any
+        if interaction.channel_id in client.active_leaderboards:
+            del client.active_leaderboards[interaction.channel_id]
 
-            await interaction.response.defer()
+        await interaction.response.defer()
 
-            data = await client.fetch_affiliate_data(days)
-            if not data:
-                await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
-                return
+        data = await client.fetch_affiliate_data(days)
+        if not data:
+            await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
+            return
 
-            end_date = datetime.datetime.now() + datetime.timedelta(days=days)
-            embed = client.create_leaderboard_embed(data, days, end_date)
-            
-            message = await interaction.followup.send(embed=embed)
-            client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
-            logger.info(f"Successfully restarted leaderboard in channel {interaction.channel_id}")
+        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        embed = client.create_leaderboard_embed(data, days, end_date)
         
-        except Exception as e:
-            logger.error(f"Error processing restart leaderboard command: {e}")
-            await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
+        message = await interaction.followup.send(embed=embed)
+        client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
+        logger.info(f"Successfully restarted leaderboard in channel {interaction.channel_id}")
+    
+    except Exception as e:
+        logger.error(f"Error processing restart leaderboard command: {e}")
+        await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
 @client.event
 async def on_ready():
