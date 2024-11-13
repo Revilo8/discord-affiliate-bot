@@ -176,9 +176,18 @@ class LeaderboardBot(discord.Client):
         logger.info("Starting leaderboard updates")
         current_time = datetime.datetime.now()
         channels_to_remove = []
-        channels_to_recreate = []  # New list for channels needing message recreation
 
-        for channel_id, (message, end_date, days) in self.active_leaderboards.items():
+        # Check and clean up channels we can't access
+        channels_to_check = list(self.active_leaderboards.items())
+        for channel_id, (message, end_date, days) in channels_to_check:
+            channel = self.get_channel(channel_id)
+            
+            # Remove leaderboard if channel is not accessible or bot lacks permissions
+            if not channel or not channel.permissions_for(channel.guild.me).send_messages:
+                logger.warning(f"Removing leaderboard from channel {channel_id} due to missing permissions")
+                channels_to_remove.append(channel_id)
+                continue
+
             try:
                 if current_time > end_date:
                     channels_to_remove.append(channel_id)
@@ -186,33 +195,41 @@ class LeaderboardBot(discord.Client):
                         await message.edit(content="🏁 Leaderboard event has ended! 🏁")
                         logger.info(f"Ended leaderboard in channel {channel_id}")
                     except:
-                        pass
+                        try:
+                            await channel.send("🏁 Leaderboard event has ended! 🏁")
+                        except:
+                            pass
                     continue
 
                 data = await self.fetch_affiliate_data(days)
                 if data:
+                    embed = self.create_leaderboard_embed(data, days, end_date)
                     try:
-                        embed = self.create_leaderboard_embed(data, days, end_date)
+                        # Try to edit existing message
                         await message.edit(embed=embed)
                         logger.info(f"Updated leaderboard in channel {channel_id}")
-                    except discord.NotFound:
-                        logger.error(f"Message not found in channel {channel_id}, will recreate")
-                        channels_to_recreate.append((channel_id, days, end_date))
-                    except discord.Forbidden:
-                        logger.error(f"No permission to edit message in channel {channel_id}, will recreate")
-                        channels_to_recreate.append((channel_id, days, end_date))
-                    except discord.HTTPException as e:
-                        if 'Invalid Webhook Token' in str(e):
-                            logger.error(f"Invalid webhook token for channel {channel_id}, will recreate")
-                            channels_to_recreate.append((channel_id, days, end_date))
-                        else:
-                            logger.error(f"HTTP error in channel {channel_id}: {e}")
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                        # If editing fails, try to send a new message
+                        try:
+                            new_message = await channel.send(embed=embed)
+                            self.active_leaderboards[channel_id] = (new_message, end_date, days)
+                            logger.info(f"Created new leaderboard message in channel {channel_id}")
+                        except discord.Forbidden:
+                            logger.error(f"No permission to send messages in channel {channel_id}")
+                            channels_to_remove.append(channel_id)
+                        except Exception as e:
+                            logger.error(f"Error sending new message in channel {channel_id}: {e}")
+                            channels_to_remove.append(channel_id)
+
             except Exception as e:
                 logger.error(f"Error updating leaderboard in channel {channel_id}: {e}")
+                channels_to_remove.append(channel_id)
 
-        # Remove ended leaderboards
+        # Remove problematic channels
         for channel_id in channels_to_remove:
-            del self.active_leaderboards[channel_id]
+            if channel_id in self.active_leaderboards:
+                del self.active_leaderboards[channel_id]
+                logger.info(f"Removed leaderboard from channel {channel_id}")
 
         # Recreate messages that had token errors
         for channel_id, days, end_date in channels_to_recreate:
@@ -265,6 +282,36 @@ async def leaderboard(interaction: discord.Interaction, days: int):
     except Exception as e:
         logger.error(f"Error processing leaderboard command: {e}")
         await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
+
+@client.tree.command(name="restartleaderboard", description="Force start a new leaderboard in this channel")
+    async def restartleaderboard(interaction: discord.Interaction, days: int):
+        logger.info(f"Restart leaderboard command received from {interaction.user} for {days} days")
+        try:
+            if days <= 0 or days > 30:
+                await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
+                return
+
+            # Remove existing leaderboard if any
+            if interaction.channel_id in client.active_leaderboards:
+                del client.active_leaderboards[interaction.channel_id]
+
+            await interaction.response.defer()
+
+            data = await client.fetch_affiliate_data(days)
+            if not data:
+                await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
+                return
+
+            end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+            embed = client.create_leaderboard_embed(data, days, end_date)
+            
+            message = await interaction.followup.send(embed=embed)
+            client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
+            logger.info(f"Successfully restarted leaderboard in channel {interaction.channel_id}")
+        
+        except Exception as e:
+            logger.error(f"Error processing restart leaderboard command: {e}")
+            await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
 @client.event
 async def on_ready():
