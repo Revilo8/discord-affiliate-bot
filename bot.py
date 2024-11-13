@@ -172,96 +172,96 @@ class LeaderboardBot(discord.Client):
             raise
 
     @tasks.loop(minutes=30)
-    async def update_leaderboards(self):
-        logger.info("Starting leaderboard updates")
-        current_time = datetime.datetime.now()
-        channels_to_remove = []
-        channels_to_recreate = []  # New list for channels needing message recreation
-
-        for channel_id, (message, end_date, days) in self.active_leaderboards.items():
-            try:
-                if current_time > end_date:
-                    channels_to_remove.append(channel_id)
-                    try:
-                        await message.edit(content="🏁 Leaderboard event has ended! 🏁")
-                        logger.info(f"Ended leaderboard in channel {channel_id}")
-                    except:
-                        pass
-                    continue
-
-                data = await self.fetch_affiliate_data(days)
-                if data:
-                    try:
-                        embed = self.create_leaderboard_embed(data, days, end_date)
-                        await message.edit(embed=embed)
-                        logger.info(f"Updated leaderboard in channel {channel_id}")
-                    except discord.NotFound:
-                        logger.error(f"Message not found in channel {channel_id}, will recreate")
-                        channels_to_recreate.append((channel_id, days, end_date))
-                    except discord.Forbidden:
-                        logger.error(f"No permission to edit message in channel {channel_id}, will recreate")
-                        channels_to_recreate.append((channel_id, days, end_date))
-                    except (discord.HTTPException, discord.InvalidArgument) as e:
-                        if 'Invalid Webhook Token' in str(e):
-                            logger.error(f"Invalid webhook token for channel {channel_id}, will recreate")
-                            channels_to_recreate.append((channel_id, days, end_date))
-                        else:
-                            logger.error(f"HTTP error in channel {channel_id}: {e}")
-            except Exception as e:
-                logger.error(f"Error updating leaderboard in channel {channel_id}: {e}")
-
-        # Remove ended leaderboards
-        for channel_id in channels_to_remove:
-            del self.active_leaderboards[channel_id]
-
-        # Recreate messages that had token errors
-        for channel_id, days, end_date in channels_to_recreate:
-            try:
-                channel = self.get_channel(channel_id)
-                if channel:
+        async def update_leaderboards(self):
+            logger.info("Starting leaderboard updates")
+            current_time = datetime.datetime.now()
+            channels_to_remove = []
+            channels_to_recreate = []  # New list for channels needing message recreation
+    
+            for channel_id, (message, end_date, days) in self.active_leaderboards.items():
+                try:
+                    if current_time > end_date:
+                        channels_to_remove.append(channel_id)
+                        try:
+                            await message.edit(content="🏁 Leaderboard event has ended! 🏁")
+                            logger.info(f"Ended leaderboard in channel {channel_id}")
+                        except:
+                            pass
+                        continue
+    
                     data = await self.fetch_affiliate_data(days)
                     if data:
-                        embed = self.create_leaderboard_embed(data, days, end_date)
-                        new_message = await channel.send(embed=embed)
-                        self.active_leaderboards[channel_id] = (new_message, end_date, days)
-                        logger.info(f"Recreated leaderboard message in channel {channel_id}")
-            except Exception as e:
-                logger.error(f"Failed to recreate message in channel {channel_id}: {e}")
-
-    @update_leaderboards.before_loop
-    async def before_update_leaderboards(self):
-        await self.wait_until_ready()
-        logger.info("Bot is ready to start updating leaderboards")
-
-    @client.tree.command(name="leaderboard", description="Start a leaderboard event for specified number of days")
-    async def leaderboard(interaction: discord.Interaction, days: int):
-        logger.info(f"Leaderboard command received from {interaction.user} for {days} days")
-        try:
-            if days <= 0 or days > 30:
-                await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
-                return
-
-            if interaction.channel_id in client.active_leaderboards:
-                await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
-                return
-
-            await interaction.response.defer()
-
-            data = await client.fetch_affiliate_data(days)
-            if not data:
-                await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
-                return
-
-            end_date = datetime.datetime.now() + datetime.timedelta(days=days)
-            embed = client.create_leaderboard_embed(data, days, end_date)
+                        try:
+                            embed = self.create_leaderboard_embed(data, days, end_date)
+                            await message.edit(embed=embed)
+                            logger.info(f"Updated leaderboard in channel {channel_id}")
+                        except discord.NotFound:
+                            logger.error(f"Message not found in channel {channel_id}, will recreate")
+                            channels_to_recreate.append((channel_id, days, end_date))
+                        except discord.Forbidden:
+                            logger.error(f"No permission to edit message in channel {channel_id}, will recreate")
+                            channels_to_recreate.append((channel_id, days, end_date))
+                        except (discord.HTTPException, discord.InvalidArgument) as e:
+                            if 'Invalid Webhook Token' in str(e):
+                                logger.error(f"Invalid webhook token for channel {channel_id}, will recreate")
+                                channels_to_recreate.append((channel_id, days, end_date))
+                            else:
+                                logger.error(f"HTTP error in channel {channel_id}: {e}")
+                except Exception as e:
+                    logger.error(f"Error updating leaderboard in channel {channel_id}: {e}")
+    
+            # Remove ended leaderboards
+            for channel_id in channels_to_remove:
+                del self.active_leaderboards[channel_id]
+    
+            # Recreate messages that had token errors
+            for channel_id, days, end_date in channels_to_recreate:
+                try:
+                    channel = self.get_channel(channel_id)
+                    if channel:
+                        data = await self.fetch_affiliate_data(days)
+                        if data:
+                            embed = self.create_leaderboard_embed(data, days, end_date)
+                            new_message = await channel.send(embed=embed)
+                            self.active_leaderboards[channel_id] = (new_message, end_date, days)
+                            logger.info(f"Recreated leaderboard message in channel {channel_id}")
+                except Exception as e:
+                    logger.error(f"Failed to recreate message in channel {channel_id}: {e}")
+    
+        @update_leaderboards.before_loop
+        async def before_update_leaderboards(self):
+            await self.wait_until_ready()
+            logger.info("Bot is ready to start updating leaderboards")
+    
+        @client.tree.command(name="leaderboard", description="Start a leaderboard event for specified number of days")
+        async def leaderboard(interaction: discord.Interaction, days: int):
+            logger.info(f"Leaderboard command received from {interaction.user} for {days} days")
+            try:
+                if days <= 0 or days > 30:
+                    await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
+                    return
+    
+                if interaction.channel_id in client.active_leaderboards:
+                    await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
+                    return
+    
+                await interaction.response.defer()
+    
+                data = await client.fetch_affiliate_data(days)
+                if not data:
+                    await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
+                    return
+    
+                end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+                embed = client.create_leaderboard_embed(data, days, end_date)
+                
+                message = await interaction.followup.send(embed=embed)
+                client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
+                logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
             
-            message = await interaction.followup.send(embed=embed)
-            client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
-            logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
-        
-        except Exception as e:
-            logger.error(f"Error processing leaderboard command: {e}")
-            await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
+            except Exception as e:
+                logger.error(f"Error processing leaderboard command: {e}")
+                await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
 @client.event
 async def on_ready():
