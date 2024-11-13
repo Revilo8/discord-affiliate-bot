@@ -57,7 +57,10 @@ class LeaderboardBot(discord.Client):
         start_time = int((datetime.datetime.now() - datetime.timedelta(days=days)).timestamp() * 1000)
         
         async with aiohttp.ClientSession() as session:
-            headers = {'x-apikey': API_KEY}
+            headers = {
+                "accept": "application/json",
+                "x-apikey": API_KEY
+            }
             params = {
                 'code': AFFILIATE_CODE,
                 'gt': str(start_time),
@@ -71,8 +74,6 @@ class LeaderboardBot(discord.Client):
             try:
                 url = f"{API_BASE_URL}/affiliate/external"
                 logger.info(f"Making API request to: {url}")
-                logger.info(f"With params: {params}")
-                logger.info(f"Headers present: {bool(headers.get('x-apikey'))}")
                 
                 async with session.get(url, 
                                      headers=headers, 
@@ -94,18 +95,28 @@ class LeaderboardBot(discord.Client):
 
     def create_leaderboard_embed(self, data: list, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
+            # Get the data array from the response
+            entries = data.get('data', [])
+            
+            # Debug log
+            logger.info(f"Processing {len(entries)} entries")
+            logger.info(f"Sample entry: {entries[0] if entries else 'No entries'}")
+            
             # Aggregate user data
             user_stats = {}
-            for entry in data:
-                username = entry.get('username', 'Unknown')
+            for entry in entries:
+                username = entry.get('name', 'Unknown')
+                wagered = float(entry.get('wagered', 0))
+                deposited = float(entry.get('deposited', 0))
+                
                 if username not in user_stats:
                     user_stats[username] = {'wager': 0, 'deposits': 0}
-                user_stats[username]['wager'] += float(entry.get('wager', 0))
-                user_stats[username]['deposits'] += float(entry.get('deposit', 0))
+                user_stats[username]['wager'] += wagered
+                user_stats[username]['deposits'] += deposited
             
             # Sort users by wager
             top_users = sorted(user_stats.items(), 
-                             key=lambda x: x[1]['wager'], 
+                             key=lambda x: x[1]['deposits'], 
                              reverse=True)[:10]
             
             # Calculate time remaining
@@ -126,7 +137,7 @@ class LeaderboardBot(discord.Client):
             
             embed.add_field(
                 name="📊 Total Stats",
-                value=f"Total Wager: ${total_wager:,.2f}\nTotal Deposits: ${total_deposits:,.2f}",
+                value=f"Total Deposits: ${total_deposits:,.2f}\nTotal Wager: ${total_wager:,.2f}",
                 inline=False
             )
             
@@ -135,9 +146,12 @@ class LeaderboardBot(discord.Client):
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
                 embed.add_field(
                     name=f"{medal} #{i} {username}",
-                    value=f"Wager: ${stats['wager']:,.2f}\nDeposits: ${stats['deposits']:,.2f}",
+                    value=f"Deposits: ${stats['deposits']:,.2f}\nWager: ${stats['wager']:,.2f}",
                     inline=False
                 )
+
+            # Add footer with timestamp
+            embed.set_footer(text=f"Last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
             
             return embed
         except Exception as e:
