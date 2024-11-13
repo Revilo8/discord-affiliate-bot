@@ -181,9 +181,34 @@ class LeaderboardBot(discord.Client):
         for channel_id, (message, end_date, days) in list(self.active_leaderboards.items()):
             channel = self.get_channel(channel_id)
             
-            # Remove leaderboard if channel is not accessible
-            if not channel or not channel.permissions_for(channel.guild.me).send_messages:
-                logger.warning(f"Removing leaderboard from channel {channel_id} due to missing permissions")
+            if not channel:
+                logger.error(f"Could not find channel {channel_id}")
+                channels_to_remove.append(channel_id)
+                continue
+
+            # Log all permissions
+            bot_member = channel.guild.me
+            permissions = channel.permissions_for(bot_member)
+            logger.info(f"Bot permissions in channel {channel_id}:")
+            logger.info(f"- Send Messages: {permissions.send_messages}")
+            logger.info(f"- Embed Links: {permissions.embed_links}")
+            logger.info(f"- Read Messages: {permissions.read_messages}")
+            logger.info(f"- View Channel: {permissions.view_channel}")
+            logger.info(f"- Read Message History: {permissions.read_message_history}")
+
+            # Check specific permissions
+            required_permissions = {
+                'send_messages': permissions.send_messages,
+                'embed_links': permissions.embed_links,
+                'read_messages': permissions.read_messages,
+                'view_channel': permissions.view_channel,
+                'read_message_history': permissions.read_message_history
+            }
+
+            missing_permissions = [perm for perm, has_perm in required_permissions.items() if not has_perm]
+            
+            if missing_permissions:
+                logger.warning(f"Missing permissions in channel {channel_id}: {', '.join(missing_permissions)}")
                 channels_to_remove.append(channel_id)
                 continue
 
@@ -194,11 +219,12 @@ class LeaderboardBot(discord.Client):
                     try:
                         await message.edit(content="🏁 Leaderboard event has ended! 🏁")
                         logger.info(f"Ended leaderboard in channel {channel_id}")
-                    except:
+                    except Exception as e:
+                        logger.error(f"Failed to edit end message: {e}")
                         try:
                             await channel.send("🏁 Leaderboard event has ended! 🏁")
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.error(f"Failed to send end message: {e}")
                     continue
 
                 # Update leaderboard
@@ -208,23 +234,27 @@ class LeaderboardBot(discord.Client):
                     try:
                         # Try to edit existing message
                         await message.edit(embed=embed)
-                        logger.info(f"Updated leaderboard in channel {channel_id}")
-                    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
-                        logger.error(f"Failed to edit message in {channel_id}, trying to send new one: {str(e)}")
-                        # If editing fails, try to send a new message
+                        logger.info(f"Successfully updated leaderboard in channel {channel_id}")
+                    except discord.NotFound:
+                        logger.warning(f"Message not found in {channel_id}, sending new one")
+                        new_message = await channel.send(embed=embed)
+                        self.active_leaderboards[channel_id] = (new_message, end_date, days)
+                        logger.info(f"Created new leaderboard message in channel {channel_id}")
+                    except discord.Forbidden as e:
+                        logger.error(f"Forbidden error in channel {channel_id}: {e}")
+                        channels_to_remove.append(channel_id)
+                    except discord.HTTPException as e:
+                        logger.error(f"HTTP error in channel {channel_id}: {e}")
                         try:
                             new_message = await channel.send(embed=embed)
                             self.active_leaderboards[channel_id] = (new_message, end_date, days)
-                            logger.info(f"Created new leaderboard message in channel {channel_id}")
-                        except discord.Forbidden:
-                            logger.error(f"No permission to send messages in channel {channel_id}")
-                            channels_to_remove.append(channel_id)
-                        except Exception as e:
-                            logger.error(f"Error sending new message in channel {channel_id}: {e}")
+                            logger.info(f"Created new leaderboard message after HTTP error")
+                        except Exception as e2:
+                            logger.error(f"Failed to send new message: {e2}")
                             channels_to_remove.append(channel_id)
 
             except Exception as e:
-                logger.error(f"Error updating leaderboard in channel {channel_id}: {e}")
+                logger.error(f"Unexpected error updating leaderboard in channel {channel_id}: {e}")
                 channels_to_remove.append(channel_id)
 
         # Remove problematic channels
@@ -300,6 +330,26 @@ async def restartleaderboard(interaction: discord.Interaction, days: int):
     except Exception as e:
         logger.error(f"Error processing restart leaderboard command: {e}")
         await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
+
+# Add this helper command to check permissions
+@client.tree.command(name="checkperms", description="Check bot permissions in this channel")
+async def checkperms(interaction: discord.Interaction):
+    channel = interaction.channel
+    bot_member = channel.guild.me
+    permissions = channel.permissions_for(bot_member)
+    
+    perms_list = [
+        f"Send Messages: {permissions.send_messages}",
+        f"Embed Links: {permissions.embed_links}",
+        f"Read Messages: {permissions.read_messages}",
+        f"View Channel: {permissions.view_channel}",
+        f"Read Message History: {permissions.read_message_history}"
+    ]
+    
+    await interaction.response.send_message(
+        "Bot permissions in this channel:\n" + "\n".join(perms_list),
+        ephemeral=True
+    )
 
 @client.event
 async def on_ready():
