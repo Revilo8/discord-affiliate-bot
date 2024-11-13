@@ -141,7 +141,7 @@ class LeaderboardBot(discord.Client):
             
             embed = discord.Embed(
                 title="🏆 Affiliate Leaderboard 🏆",
-                description=f"Top Users - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h",
+                description=f"Top Users - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 30 minutes",
                 color=discord.Color.gold(),
                 timestamp=datetime.datetime.now()
             )
@@ -171,7 +171,7 @@ class LeaderboardBot(discord.Client):
             logger.error(f"Data that caused error: {data[:100]}")  # Show first 100 chars
             raise
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=30)
     async def update_leaderboards(self):
         logger.info("Starting leaderboard updates")
         current_time = datetime.datetime.now()
