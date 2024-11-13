@@ -201,7 +201,7 @@ class LeaderboardBot(discord.Client):
                     except discord.Forbidden:
                         logger.error(f"No permission to edit message in channel {channel_id}, will recreate")
                         channels_to_recreate.append((channel_id, days, end_date))
-                    except (discord.HTTPException, discord.InvalidArgument) as e:
+                    except discord.HTTPException as e:
                         if 'Invalid Webhook Token' in str(e):
                             logger.error(f"Invalid webhook token for channel {channel_id}, will recreate")
                             channels_to_recreate.append((channel_id, days, end_date))
