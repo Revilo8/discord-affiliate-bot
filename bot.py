@@ -103,17 +103,12 @@ class LeaderboardBot(discord.Client):
                     
                     if response.status == 200:
                         data = await response.json()
-                        logger.info("Successfully fetched affiliate data")
-                        logger.info(f"Data type: {type(data)}")
-                        logger.info(f"Data structure: {data[:100] if isinstance(data, list) else data}")  # Show first 100 chars
+                        logger.info(f"Successfully fetched data with {len(data.get('data', [])) if isinstance(data, dict) else 0} entries")
                         return data
                     else:
                         response_text = await response.text()
                         logger.error(f"API request failed with status {response.status}")
                         logger.error(f"Response text: {response_text}")
-                        if days > 1:
-                            logger.info("Trying with a smaller date range...")
-                            return await self.fetch_affiliate_data(days=1)
                     return None
             except Exception as e:
                 logger.error(f"Error fetching data: {str(e)}")
@@ -121,20 +116,24 @@ class LeaderboardBot(discord.Client):
 
     def create_leaderboard_embed(self, data: dict, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
-            # Extract the actual data array from the response
+            # Get the data array from the response
             entries = data.get('data', [])
+            
+            # Debug log
+            logger.info(f"Processing {len(entries)} entries")
+            logger.info(f"Sample entry: {entries[0] if entries else 'No entries'}")
                 
             # Aggregate user data
             user_stats = {}
             for entry in entries:
-                username = entry.get('username', 'Unknown')
-                wager = float(entry.get('wager', 0))
-                deposit = float(entry.get('deposit', 0))
+                username = entry.get('name', 'Unknown')
+                wagered = float(entry.get('wagered', 0))
+                deposited = float(entry.get('deposited', 0))
                 
                 if username not in user_stats:
                     user_stats[username] = {'wager': 0, 'deposits': 0}
-                user_stats[username]['wager'] += wager
-                user_stats[username]['deposits'] += deposit
+                user_stats[username]['wager'] += wagered
+                user_stats[username]['deposits'] += deposited
             
             # If no valid data was processed
             if not user_stats:
@@ -146,9 +145,9 @@ class LeaderboardBot(discord.Client):
                 )
                 return embed
                 
-            # Sort users by wager
+            # Sort users by deposits
             top_users = sorted(user_stats.items(), 
-                             key=lambda x: x[1]['wager'], 
+                             key=lambda x: x[1]['deposits'], 
                              reverse=True)[:10]
             
             # Calculate time remaining
@@ -178,14 +177,17 @@ class LeaderboardBot(discord.Client):
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
                 embed.add_field(
                     name=f"{medal} #{i} {username}",
-                    value=f"Wager: ${stats['wager']:,.2f}\nDeposits: ${stats['deposits']:,.2f}",
+                    value=f"Deposits: ${stats['deposits']:,.2f}\nWager: ${stats['wager']:,.2f}",
                     inline=False
                 )
+
+            # Add footer with timestamp
+            embed.set_footer(text=f"Last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
             
             return embed
         except Exception as e:
             logger.error(f"Error creating embed: {e}")
-            logger.error(f"Data that caused error: {data[:100]}")  # Show first 100 chars
+            logger.error(f"Data that caused error: {data}")
             raise
 
     @tasks.loop(minutes=5)
