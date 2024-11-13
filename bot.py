@@ -69,9 +69,12 @@ class LeaderboardBot(discord.Client):
         return False
 
     async def fetch_affiliate_data(self, days: int = 7) -> Optional[list]:
-        logger.info(f"Fetching affiliate data for {days} days")
-        current_time = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
-        start_time = int((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).timestamp() * 1000)
+        logger.info(f"Fetching affiliate data for next {days} days")
+        start_time = int(datetime.datetime.now().timestamp() * 1000)  # Current time
+        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)  # Future time
+        
+        logger.info(f"Start time: {datetime.datetime.fromtimestamp(start_time/1000)}")
+        logger.info(f"End time: {datetime.datetime.fromtimestamp(end_time/1000)}")
         
         async with aiohttp.ClientSession() as session:
             headers = {
@@ -81,7 +84,7 @@ class LeaderboardBot(discord.Client):
             params = {
                 'code': AFFILIATE_CODE,
                 'gt': str(start_time),
-                'lt': str(current_time),
+                'lt': str(end_time),
                 'by': 'createdAt',
                 'sort': 'desc',
                 'take': '1000',
@@ -90,11 +93,6 @@ class LeaderboardBot(discord.Client):
             
             try:
                 url = f"{API_BASE_URL}/affiliate/external"
-
-                # Log exact request details
-                full_params = "&".join([f"{k}={v}" for k, v in params.items()])
-                logger.info(f"Full request URL would be: {url}?{full_params}")
-                logger.info(f"API Key length: {len(API_KEY)}")
                 
                 async with session.get(url, 
                                      headers=headers, 
@@ -103,8 +101,16 @@ class LeaderboardBot(discord.Client):
                     
                     if response.status == 200:
                         data = await response.json()
-                        logger.info(f"Successfully fetched data with {len(data.get('data', [])) if isinstance(data, dict) else 0} entries")
-                        return data
+                        entries = data.get('data', [])
+                        # Filter out entries with zero deposits
+                        filtered_data = {
+                            'data': [
+                                entry for entry in entries 
+                                if float(entry.get('deposited', 0)) > 0
+                            ]
+                        }
+                        logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} with deposits")
+                        return filtered_data
                     else:
                         response_text = await response.text()
                         logger.error(f"API request failed with status {response.status}")
@@ -129,6 +135,10 @@ class LeaderboardBot(discord.Client):
                 username = entry.get('name', 'Unknown')
                 wagered = float(entry.get('wagered', 0))
                 deposited = float(entry.get('deposited', 0))
+
+                # Skip users with no deposits (extra safety check)
+                if deposited <= 0:
+                    continue
                 
                 if username not in user_stats:
                     user_stats[username] = {'wager': 0, 'deposits': 0}
