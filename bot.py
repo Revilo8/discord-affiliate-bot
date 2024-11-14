@@ -68,10 +68,8 @@ class LeaderboardBot(discord.Client):
                 raise  # Re-raise other types of errors
         return False
 
-    async def fetch_affiliate_data(self, days: int = 7) -> Optional[list]:
-        logger.info(f"Fetching affiliate data for next {days} days")
-        start_time = int(datetime.datetime.now().timestamp() * 1000)  # Current time
-        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)  # Future time
+    async def fetch_affiliate_data(self, start_time: int, end_time: int) -> Optional[dict]:
+        logger.info(f"Fetching affiliate data from {datetime.datetime.fromtimestamp(start_time/1000)} to {datetime.datetime.fromtimestamp(end_time/1000)}")
         
         logger.info(f"Start time: {datetime.datetime.fromtimestamp(start_time/1000)}")
         logger.info(f"End time: {datetime.datetime.fromtimestamp(end_time/1000)}")
@@ -206,7 +204,7 @@ class LeaderboardBot(discord.Client):
         current_time = datetime.datetime.now()
         channels_to_remove = []
 
-        for channel_id, (message, end_date, days) in list(self.active_leaderboards.items()):
+        for channel_id, (message, end_date, days, start_time, end_time) in list(self.active_leaderboards.items()):
             channel = self.get_channel(channel_id)
             
             if not channel:
@@ -225,36 +223,23 @@ class LeaderboardBot(discord.Client):
                     continue
 
                 # Update leaderboard
-                data = await self.fetch_affiliate_data(days)
+                data = await self.fetch_affiliate_data(start_time, end_time)
                 if data:
-                    embed = self.create_leaderboard_embed(data, days, end_date)
+                    embed = self.create_leaderboard_embed(data, days, end_date, start_time, end_time)
                     try:
-                        # Try to update with retries
-                        update_success = await self.retry_update_message(channel, message, embed)
-                        
-                        if update_success:
-                            logger.info(f"Successfully updated leaderboard in channel {channel_id}")
-                        else:
-                            logger.error(f"Failed to update leaderboard after all retries in channel {channel_id}")
-                            # Don't remove the leaderboard, it might work next update
-                            
-                    except discord.NotFound as e:
-                        logger.error(f"Message not found in channel {channel_id}: {e}")
-                        # Message was deleted, remove from tracking
-                        channels_to_remove.append(channel_id)
+                        await message.edit(embed=embed)
+                        logger.info(f"Successfully updated leaderboard in channel {channel_id}")
                     except Exception as e:
-                        logger.error(f"Unexpected error updating leaderboard: {e}")
-                        # Don't remove the leaderboard for unexpected errors, might work next time
+                        logger.error(f"Error updating message: {e}")
 
             except Exception as e:
                 logger.error(f"Error in update loop for channel {channel_id}: {e}")
-                # Don't remove the leaderboard, might be temporary API issue
 
-        # Only remove channels where we know the message is gone
+        # Remove ended leaderboards
         for channel_id in channels_to_remove:
             if channel_id in self.active_leaderboards:
                 del self.active_leaderboards[channel_id]
-                logger.info(f"Removed ended/deleted leaderboard from channel {channel_id}")
+                logger.info(f"Removed ended leaderboard from channel {channel_id}")
 
     @update_leaderboards.before_loop
     async def before_update_leaderboards(self):
@@ -280,20 +265,30 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         # Acknowledge the interaction quickly
         await interaction.response.defer()
 
-        data = await client.fetch_affiliate_data(days)
+        # Calculate time window once when creating leaderboard
+        start_time = int(datetime.datetime.now().timestamp() * 1000)
+        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+
+        # Initial data fetch with the fixed time window
+        data = await client.fetch_affiliate_data(start_time, end_time)
         if not data:
             await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
             return
 
-        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
-        embed = client.create_leaderboard_embed(data, days, end_date)
-        
-        # Send as a regular channel message instead of an interaction followup
+        embed = client.create_leaderboard_embed(data, days, end_date, start_time, end_time)
+
         message = await interaction.channel.send(embed=embed)
-        client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
+        # Store the time window with other leaderboard data
+        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time)
+        
+        
+        # # Send as a regular channel message instead of an interaction followup
+        # message = await interaction.channel.send(embed=embed)
+        # client.active_leaderboards[interaction.channel_id] = (message, end_date, days)
         
         # Send a temporary confirmation
-        await interaction.followup.send("Leaderboard started! It will update every 30 minutes.", ephemeral=True)
+        await interaction.followup.send("Leaderboard started! It will update every 5 minutes.", ephemeral=True)
         logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
     
     except Exception as e:
