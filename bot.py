@@ -273,7 +273,7 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
 
         # Set specific dates (Year, Month, Day, Hour, Minute)
-        start_date = datetime.datetime(2024, 11, 10, 0, 0)  # November 10, 2024 00:00
+        start_date = datetime.datetime(2024, 11, 11, 0, 0)  # November 10, 2024 00:00
         end_date = datetime.datetime(2024, 11, 17, 0, 0)    # November 17, 2024 00:00
 
         # Convert to milliseconds timestamp
