@@ -125,12 +125,13 @@ class LeaderboardBot(discord.Client):
             
             # Debug log
             logger.info(f"Processing {len(entries)} entries")
-            # logger.info(f"Sample entry: {entries[0] if entries else 'No entries'}")
+            # Debug: Print all entries first
+            for i, entry in enumerate(entries):
+                logger.info(f"Raw Entry {i+1}: {entry}")
                 
             # Aggregate user data
             user_stats = {}
             for entry in entries:
-                logger.info(f"Entry {index + 1}: {entry}")
                 username = entry.get('name', 'Unknown')
                 wagered = float(entry.get('wagered', 0))
                 deposited = float(entry.get('deposited', 0))
