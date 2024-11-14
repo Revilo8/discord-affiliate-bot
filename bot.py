@@ -125,11 +125,12 @@ class LeaderboardBot(discord.Client):
             
             # Debug log
             logger.info(f"Processing {len(entries)} entries")
-            logger.info(f"Sample entry: {entries[0] if entries else 'No entries'}")
+            # logger.info(f"Sample entry: {entries[0] if entries else 'No entries'}")
                 
             # Aggregate user data
             user_stats = {}
             for entry in entries:
+                logger.info(f"Entry {index + 1}: {entry}")
                 username = entry.get('name', 'Unknown')
                 wagered = float(entry.get('wagered', 0))
                 deposited = float(entry.get('deposited', 0))
@@ -140,8 +141,8 @@ class LeaderboardBot(discord.Client):
                 
                 if username not in user_stats:
                     user_stats[username] = {'wager': 0, 'deposits': 0}
-                user_stats[username]['wager'] += wagered
-                user_stats[username]['deposits'] += deposited
+                user_stats[username]['wager'] = wagered
+                user_stats[username]['deposits'] = deposited
             
             # If no valid data was processed
             if not user_stats:
