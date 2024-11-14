@@ -266,10 +266,24 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         # Acknowledge the interaction quickly
         await interaction.response.defer()
 
-        # Calculate time window once when creating leaderboard
-        start_time = int(datetime.datetime.now().timestamp() * 1000)
-        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        # # Calculate time window once when creating leaderboard
+        # start_time = int(datetime.datetime.now().timestamp() * 1000)
+        # end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+
+        # Set specific dates (Year, Month, Day, Hour, Minute)
+        start_date = datetime.datetime(2024, 11, 10, 0, 0)  # November 10, 2024 00:00
+        end_date = datetime.datetime(2024, 11, 17, 0, 0)    # November 17, 2024 00:00
+
+        # Convert to milliseconds timestamp
+        start_time = int(start_date.timestamp() * 1000)
+        end_time = int(end_date.timestamp() * 1000)
+
+        # Calculate days for display purposes
+        days = (end_date - start_date).days
+
+        logger.info(f"Start time: {start_date}")
+        logger.info(f"End time: {end_date}")
 
         # Initial data fetch with the fixed time window
         data = await client.fetch_affiliate_data(start_time, end_time)
