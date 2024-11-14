@@ -118,7 +118,7 @@ class LeaderboardBot(discord.Client):
                 logger.error(f"Error fetching data: {str(e)}")
                 return None
 
-    def create_leaderboard_embed(self, data: dict, days: int, end_date: datetime.datetime) -> discord.Embed:
+    def create_leaderboard_embed(self, data: dict, days: int, end_date: datetime.datetime, start_time: int, end_time: int) -> discord.Embed:
         try:
             # Get the data array from the response
             entries = data.get('data', [])
@@ -165,7 +165,7 @@ class LeaderboardBot(discord.Client):
             
             embed = discord.Embed(
                 title="🏆 Affiliate Leaderboard 🏆",
-                description=f"Top Users - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 30 minutes",
+                description=f"Top Users - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 5 minutes",
                 color=discord.Color.gold(),
                 timestamp=datetime.datetime.now()
             )
