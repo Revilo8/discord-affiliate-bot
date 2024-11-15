@@ -178,7 +178,7 @@ class LeaderboardBot(discord.Client):
             
             embed.add_field(
                 name="📊 Total Stats",
-                value=f"Total Wager: ${total_wager:,.2f}\nTotal Deposits: ${total_deposits:,.2f}",
+                value=f"Total Deposits: ${total_deposits:,.2f}",
                 inline=False
             )
             
@@ -187,7 +187,7 @@ class LeaderboardBot(discord.Client):
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
                 embed.add_field(
                     name=f"{medal} #{i} {username}",
-                    value=f"Deposits: ${stats['deposits']:,.2f}\nWager: ${stats['wager']:,.2f}",
+                    value=f"Deposits(coins): {stats['deposits']:,.2f}",
                     inline=False
                 )
 
