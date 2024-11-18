@@ -257,7 +257,6 @@ class LeaderboardBot(discord.Client):
 
     @tasks.loop(minutes=15)
     async def update_leaderboards(self):
-        logger.info("Starting leaderboard updates")
         current_time = datetime.datetime.now()
         channels_to_remove = []
 
