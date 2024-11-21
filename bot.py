@@ -258,7 +258,7 @@ class LeaderboardBot(discord.Client):
 
     @tasks.loop(minutes=15)
     async def update_leaderboards(self):
-        current_time = datetime.datetime.now()
+        current_time = datetime.datetime.now(datetime.timezone.utc)
         channels_to_remove = []
 
         for channel_id, (message, end_date, days, start_time, end_time) in list(self.active_leaderboards.items()):
@@ -270,6 +270,10 @@ class LeaderboardBot(discord.Client):
                 continue
 
             try:
+                # Check if leaderboard has ended (make sure end_date is timezone-aware)
+                if isinstance(end_date, datetime.datetime) and end_date.tzinfo is None:
+                    end_date = end_date.replace(tzinfo=datetime.timezone.utc)
+                
                 # Check if leaderboard has ended
                 if current_time > end_date:
                     channels_to_remove.append(channel_id)
