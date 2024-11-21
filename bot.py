@@ -213,7 +213,7 @@ class LeaderboardBot(discord.Client):
                             reverse=True)[:10]
             
             # Calculate time remaining
-            time_remaining = end_date - datetime.datetime.now()
+            time_remaining = end_date - datetime.datetime.now(datetime.timezone.utc)
             days_remaining = time_remaining.days
             hours_remaining = time_remaining.seconds // 3600
             
@@ -371,6 +371,9 @@ async def tickets(interaction: discord.Interaction, days: int):
         # Convert to milliseconds timestamp
         start_time = int(start_date.timestamp() * 1000)
         end_time = int(end_date.timestamp() * 1000)
+
+        # Make current_time timezone-aware for comparison
+        current_time = datetime.datetime.now(datetime.timezone.utc)
         
         # Calculate days for display
         days = (end_date - start_date).days
