@@ -266,6 +266,7 @@ class LeaderboardBot(discord.Client):
             
             if not channel:
                 logger.error(f"Could not find channel {channel_id}")
+                channels_to_remove.append(channel_id)
                 continue
 
             try:
@@ -390,6 +391,19 @@ async def tickets(interaction: discord.Interaction, days: int):
 async def sync(interaction: discord.Interaction):
     await client.tree.sync()
     await interaction.response.send_message("Commands synced!", ephemeral=True)
+
+@client.tree.command(name="clearleaderboard", description="Clear active leaderboard in this channel")
+@app_commands.checks.has_permissions(administrator=True)
+async def clearleaderboard(interaction: discord.Interaction):
+    try:
+        if interaction.channel_id in client.active_leaderboards:
+            del client.active_leaderboards[interaction.channel_id]
+            await interaction.response.send_message("Leaderboard cleared!", ephemeral=True)
+        else:
+            await interaction.response.send_message("No active leaderboard in this channel.", ephemeral=True)
+    except Exception as e:
+        logger.error(f"Error clearing leaderboard: {e}")
+        await interaction.response.send_message("Error clearing leaderboard.", ephemeral=True)
 
 
 @client.event
