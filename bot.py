@@ -356,41 +356,41 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         logger.error(f"Error processing leaderboard command: {e}")
         await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
         
-    @client.tree.command(name="tickets", description="Start a tickets leaderboard event for specified number of days")
-    async def tickets(interaction: discord.Interaction, days: int):
-        logger.info(f"Tickets leaderboard command received from {interaction.user} for {days} days")
-        try:
-            if days <= 0 or days > 30:
-                await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
-                return
+@client.tree.command(name="tickets", description="Start a tickets leaderboard event for specified number of days")
+async def tickets(interaction: discord.Interaction, days: int):
+    logger.info(f"Tickets leaderboard command received from {interaction.user} for {days} days")
+    try:
+        if days <= 0 or days > 30:
+            await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
+            return
 
-            if interaction.channel_id in client.active_leaderboards:
-                await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
-                return
+        if interaction.channel_id in client.active_leaderboards:
+            await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
+            return
 
-            await interaction.response.defer()
+        await interaction.response.defer()
 
-            # Calculate time window
-            start_time = int(datetime.datetime.now().timestamp() * 1000)
-            end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-            end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        # Calculate time window
+        start_time = int(datetime.datetime.now().timestamp() * 1000)
+        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
 
-            data = await client.fetch_affiliate_data(start_time, end_time)
-            if not data:
-                await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
-                return
+        data = await client.fetch_affiliate_data(start_time, end_time)
+        if not data:
+            await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
+            return
 
-            embed = create_tickets_embed(data, days, end_date)
-            
-            message = await interaction.channel.send(embed=embed)
-            client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time)
-            
-            await interaction.followup.send("Tickets leaderboard started! It will update every 15 minutes.", ephemeral=True)
-            logger.info(f"Successfully started tickets leaderboard in channel {interaction.channel_id}")
+        embed = create_tickets_embed(data, days, end_date)
         
-        except Exception as e:
-            logger.error(f"Error processing tickets command: {e}")
-            await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
+        message = await interaction.channel.send(embed=embed)
+        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time)
+        
+        await interaction.followup.send("Tickets leaderboard started! It will update every 15 minutes.", ephemeral=True)
+        logger.info(f"Successfully started tickets leaderboard in channel {interaction.channel_id}")
+    
+    except Exception as e:
+        logger.error(f"Error processing tickets command: {e}")
+        await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
 
 @client.event
