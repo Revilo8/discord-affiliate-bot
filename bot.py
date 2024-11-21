@@ -384,6 +384,12 @@ async def tickets(interaction: discord.Interaction, days: int):
         logger.error(f"Error processing tickets command: {e}")
         await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
 
+@client.tree.command(name="sync", description="Sync commands")
+@app_commands.checks.has_permissions(administrator=True)
+async def sync(interaction: discord.Interaction):
+    await client.tree.sync()
+    await interaction.response.send_message("Commands synced!", ephemeral=True)
+
 
 @client.event
 async def on_ready():
