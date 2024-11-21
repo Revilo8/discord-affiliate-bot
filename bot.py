@@ -173,6 +173,7 @@ class LeaderboardBot(discord.Client):
             logger.error(f"Error creating embed: {e}")
             logger.error(f"Data that caused error: {data}")
             raise
+
     def create_tickets_embed(self, data: dict, days: int, end_date: datetime.datetime) -> discord.Embed:
         try:
             entries = data.get('data', [])
@@ -372,7 +373,7 @@ async def tickets(interaction: discord.Interaction, days: int):
             await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
             return
 
-        embed = create_tickets_embed(data, days, end_date)
+        embed = client.create_tickets_embed(data, days, end_date)
         
         message = await interaction.channel.send(embed=embed)
         client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time)
