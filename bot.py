@@ -364,10 +364,21 @@ async def tickets(interaction: discord.Interaction, days: int):
 
         await interaction.response.defer()
 
-        # Calculate time window
-        start_time = int(datetime.datetime.now().timestamp() * 1000)
-        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        # Set fixed dates in UTC
+        start_date = datetime.datetime(2024, 11, 21, 18, 0, tzinfo=datetime.timezone.utc)  # 18:00 UTC = 19:00 CET
+        end_date = datetime.datetime(2024, 11, 28, 18, 0, tzinfo=datetime.timezone.utc)    # 18:00 UTC = 19:00 CET
+        
+        # Convert to milliseconds timestamp
+        start_time = int(start_date.timestamp() * 1000)
+        end_time = int(end_date.timestamp() * 1000)
+        
+        # Calculate days for display
+        days = (end_date - start_date).days
+
+        # # Calculate time window
+        # start_time = int(datetime.datetime.now().timestamp() * 1000)
+        # end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
 
         data = await client.fetch_affiliate_data(start_time, end_time)
         if not data:
