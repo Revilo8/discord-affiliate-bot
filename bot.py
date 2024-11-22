@@ -286,7 +286,7 @@ class LeaderboardBot(discord.Client):
                 if data:
                     if board_type == 'tickets':
                         embed = self.create_tickets_embed(data, days, end_date)
-                    else 
+                    else:
                         embed = self.create_leaderboard_embed(data, days, end_date)
                     
                     try:
