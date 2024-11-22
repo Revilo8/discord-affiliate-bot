@@ -262,7 +262,7 @@ class LeaderboardBot(discord.Client):
         current_time = datetime.datetime.now()
         channels_to_remove = []
 
-        for channel_id, (message, end_date, days, start_time, end_time) in list(self.active_leaderboards.items()):
+        for channel_id, (message, end_date, days, start_time, end_time, board_type) in list(self.active_leaderboards.items()):
             channel = self.get_channel(channel_id)
             
             if not channel:
@@ -284,7 +284,11 @@ class LeaderboardBot(discord.Client):
                 # Update leaderboard
                 data = await self.fetch_affiliate_data(start_time, end_time)
                 if data:
-                    embed = self.create_leaderboard_embed(data, days, end_date)
+                    if board_type == 'tickets':
+                        embed = self.create_tickets_embed(data, days, end_date)
+                    else 
+                        embed = self.create_leaderboard_embed(data, days, end_date)
+                    
                     try:
                         await message.edit(embed=embed)
                         logger.info(f"Successfully updated leaderboard in channel {channel_id}")
@@ -341,7 +345,7 @@ async def leaderboard(interaction: discord.Interaction, days: int):
 
         message = await interaction.channel.send(embed=embed)
         # Store the time window with other leaderboard data
-        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time)
+        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time, 'leaderboard')
         
         # Send a temporary confirmation
         await interaction.followup.send("Leaderboard started! It will update every 15 minutes.", ephemeral=True)
@@ -387,7 +391,7 @@ async def tickets(interaction: discord.Interaction, days: int):
         embed = client.create_tickets_embed(data, days, end_date)
         
         message = await interaction.channel.send(embed=embed)
-        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time)
+        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time, 'tickets')
         
         await interaction.followup.send("Tickets leaderboard started! It will update every 15 minutes.", ephemeral=True)
         logger.info(f"Successfully started tickets leaderboard in channel {interaction.channel_id}")
