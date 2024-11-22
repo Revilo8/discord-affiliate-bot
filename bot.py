@@ -211,6 +211,10 @@ class LeaderboardBot(discord.Client):
             top_users = sorted(user_stats.items(), 
                             key=lambda x: x[1]['tickets'], 
                             reverse=True)[:10]
+
+            # Ensure end_date is timezone-aware
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=datetime.timezone.utc)
             
             # Calculate time remaining
             time_remaining = end_date - datetime.datetime.now(datetime.timezone.utc)
@@ -226,7 +230,7 @@ class LeaderboardBot(discord.Client):
                     f"1 ticket = 10 coins deposited"
                 ),
                 color=discord.Color.gold(),
-                timestamp=datetime.datetime.now()
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
             )
             
             # Add total stats
@@ -248,7 +252,8 @@ class LeaderboardBot(discord.Client):
                     inline=False
                 )
 
-            embed.set_footer(text=f"Last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            current_time = datetime.datetime.now(datetime.timezone.utc)
+            embed.set_footer(text=f"Last updated: {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             
             return embed
         except Exception as e:
