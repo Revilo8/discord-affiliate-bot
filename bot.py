@@ -211,13 +211,9 @@ class LeaderboardBot(discord.Client):
             top_users = sorted(user_stats.items(), 
                             key=lambda x: x[1]['tickets'], 
                             reverse=True)[:10]
-
-            # Ensure end_date is timezone-aware
-            if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=datetime.timezone.utc)
             
             # Calculate time remaining
-            time_remaining = end_date - datetime.datetime.now(datetime.timezone.utc)
+            time_remaining = end_date - datetime.datetime.now()
             days_remaining = time_remaining.days
             hours_remaining = time_remaining.seconds // 3600
             
@@ -230,7 +226,7 @@ class LeaderboardBot(discord.Client):
                     f"1 ticket = 10 coins deposited"
                 ),
                 color=discord.Color.gold(),
-                timestamp=datetime.datetime.now(datetime.timezone.utc)
+                timestamp=datetime.datetime.now()
             )
             
             # Add total stats
@@ -252,7 +248,7 @@ class LeaderboardBot(discord.Client):
                     inline=False
                 )
 
-            current_time = datetime.datetime.now(datetime.timezone.utc)
+            current_time = datetime.datetime.now()
             embed.set_footer(text=f"Last updated: {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             
             return embed
@@ -263,7 +259,7 @@ class LeaderboardBot(discord.Client):
 
     @tasks.loop(minutes=15)
     async def update_leaderboards(self):
-        current_time = datetime.datetime.now(datetime.timezone.utc)
+        current_time = datetime.datetime.now()
         channels_to_remove = []
 
         for channel_id, (message, end_date, days, start_time, end_time) in list(self.active_leaderboards.items()):
@@ -275,10 +271,6 @@ class LeaderboardBot(discord.Client):
                 continue
 
             try:
-                # Check if leaderboard has ended (make sure end_date is timezone-aware)
-                if isinstance(end_date, datetime.datetime) and end_date.tzinfo is None:
-                    end_date = end_date.replace(tzinfo=datetime.timezone.utc)
-                
                 # Check if leaderboard has ended
                 if current_time > end_date:
                     channels_to_remove.append(channel_id)
@@ -374,18 +366,13 @@ async def tickets(interaction: discord.Interaction, days: int):
         await interaction.response.defer()
 
         # Set fixed dates in UTC
-        start_date = datetime.datetime(2024, 11, 21, 18, 0, tzinfo=datetime.timezone.utc)  # 18:00 UTC = 19:00 CET
-        end_date = datetime.datetime(2024, 11, 28, 18, 0, tzinfo=datetime.timezone.utc)    # 18:00 UTC = 19:00 CET
+        start_date = datetime.datetime(2024, 11, 21, 18, 0)  # 18:00 UTC = 19:00 CET
+        end_date = datetime.datetime(2024, 11, 28, 18, 0)    # 18:00 UTC = 19:00 CET
         
         # Convert to milliseconds timestamp
         start_time = int(start_date.timestamp() * 1000)
         end_time = int(end_date.timestamp() * 1000)
 
-        # Make current_time timezone-aware for comparison
-        current_time = datetime.datetime.now(datetime.timezone.utc)
-        
-        # Calculate days for display
-        days = (end_date - start_date).days
 
         # # Calculate time window
         # start_time = int(datetime.datetime.now().timestamp() * 1000)
