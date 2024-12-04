@@ -322,11 +322,18 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         # Acknowledge the interaction quickly
         await interaction.response.defer()
 
-        # Calculate time window once when creating leaderboard
-        start_time = int(datetime.datetime.now().timestamp() * 1000)
-        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        # # Calculate time window once when creating leaderboard
+        # start_time = int(datetime.datetime.now().timestamp() * 1000)
+        # end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
 
+        # Set fixed dates in UTC
+        start_date = datetime.datetime(2024, 11, 29, 15, 0)
+        end_date = datetime.datetime(2024, 12, 6, 15, 0)
+        
+        # Convert to milliseconds timestamp
+        start_time = int(start_date.timestamp() * 1000)
+        end_time = int(end_date.timestamp() * 1000)
         
 
         # Initial data fetch with the fixed time window
