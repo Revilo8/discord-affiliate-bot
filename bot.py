@@ -108,12 +108,6 @@ class LeaderboardBot(discord.Client):
         try:
             # Get the data array from the response
             entries = data.get('data', [])
-            
-            # # Debug log
-            # logger.info(f"Processing {len(entries)} entries")
-            # # Debug: Print all entries first
-            # for i, entry in enumerate(entries):
-            #     logger.info(f"Raw Entry {i+1}: {entry}")
                 
             # Aggregate user data
             user_stats = {}
@@ -142,7 +136,7 @@ class LeaderboardBot(discord.Client):
             # Sort users by deposits
             top_users = sorted(user_stats.items(), 
                              key=lambda x: x[1]['deposits'], 
-                             reverse=True)[:10]
+                             reverse=True)
             
             # Calculate time remaining
             time_remaining = end_date - datetime.datetime.now()
