@@ -113,15 +113,23 @@ class LeaderboardBot(discord.Client):
             user_stats = {}
             for entry in entries:
                 username = entry.get('name', 'Unknown')
-                deposited = float(entry.get('deposited', 0))
+                # deposited = float(entry.get('deposited', 0))
+                wagered = float(entry.get('wagered', 0))
 
                 # Skip users with no deposits (extra safety check)
-                if deposited <= 0:
+                # if deposited <= 0:
+                #     continue
+
+                if wagered <= 0:
                     continue
                 
+                # if username not in user_stats:
+                #     user_stats[username] = {'deposits': 0}
+                # user_stats[username]['deposits'] = deposited
+
                 if username not in user_stats:
-                    user_stats[username] = {'deposits': 0}
-                user_stats[username]['deposits'] = deposited
+                    user_stats[username] = {'wager': 0}
+                user_stats[username]['wager'] = wagered
             
             # If no valid data was processed
             if not user_stats:
@@ -133,9 +141,14 @@ class LeaderboardBot(discord.Client):
                 )
                 return embed
                 
-            # Sort users by deposits
+            # # Sort users by deposits
+            # top_users = sorted(user_stats.items(), 
+            #                  key=lambda x: x[1]['deposits'], 
+            #                  reverse=True)
+
+            # Sort users by wager
             top_users = sorted(user_stats.items(), 
-                             key=lambda x: x[1]['deposits'], 
+                             key=lambda x: x[1]['wager'], 
                              reverse=True)
             
             # Calculate time remaining
@@ -143,19 +156,34 @@ class LeaderboardBot(discord.Client):
             days_remaining = time_remaining.days
             hours_remaining = time_remaining.seconds // 3600
             
+            # embed = discord.Embed(
+            #     title="🏆 X.Fun Leaderboard 🏆",
+            #     description=f"Top Depositors - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 15 minutes",
+            #     color=discord.Color.gold(),
+            #     timestamp=datetime.datetime.now()
+            # )
+
             embed = discord.Embed(
                 title="🏆 X.Fun Leaderboard 🏆",
-                description=f"Top Depositors - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 15 minutes",
+                description=f"Top Wagers - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 15 minutes",
                 color=discord.Color.gold(),
                 timestamp=datetime.datetime.now()
             )
             
             # Add user rankings
+            # for i, (username, stats) in enumerate(top_users, 1):
+            #     medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
+            #     embed.add_field(
+            #         name=f"{medal} #{i} {username}",
+            #         value=f"Deposits(coins): {stats['deposits']:,.2f}",
+            #         inline=False
+            #     )
+
             for i, (username, stats) in enumerate(top_users, 1):
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
                 embed.add_field(
                     name=f"{medal} #{i} {username}",
-                    value=f"Deposits(coins): {stats['deposits']:,.2f}",
+                    value=f"Wager(coins): {stats['wager']:,.2f}",
                     inline=False
                 )
 
