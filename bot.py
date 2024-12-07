@@ -86,14 +86,14 @@ class LeaderboardBot(discord.Client):
                     if response.status == 200:
                         data = await response.json()
                         entries = data.get('data', [])
-                        # Filter out entries with zero deposits
+                        # Filter out entries with zero wager
                         filtered_data = {
                             'data': [
                                 entry for entry in entries 
-                                if float(entry.get('deposited', 0)) > 0
+                                if float(entry.get('wagered', 0)) > 0
                             ]
                         }
-                        logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} with deposits")
+                        logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} with wagers")
                         return filtered_data
 
                     response_text = await response.text()
@@ -351,17 +351,17 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         await interaction.response.defer()
 
         # Calculate time window once when creating leaderboard
-        start_time = int(datetime.datetime.now().timestamp() * 1000)
-        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        # start_time = int(datetime.datetime.now().timestamp() * 1000)
+        # end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
 
-        # # Set fixed dates in UTC
-        # start_date = datetime.datetime(2024, 11, 29, 15, 0)
-        # end_date = datetime.datetime(2024, 12, 6, 15, 0)
+        # Set fixed dates in UTC
+        start_date = datetime.datetime(2024, 12, 6, 20, 0) # 20 UTC = 21 CET
+        end_date = datetime.datetime(2024, 12, 13, 20, 0)
         
-        # # Convert to milliseconds timestamp
-        # start_time = int(start_date.timestamp() * 1000)
-        # end_time = int(end_date.timestamp() * 1000)
+        # Convert to milliseconds timestamp
+        start_time = int(start_date.timestamp() * 1000)
+        end_time = int(end_date.timestamp() * 1000)
         
 
         # Initial data fetch with the fixed time window
