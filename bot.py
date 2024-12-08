@@ -90,10 +90,20 @@ class LeaderboardBot(discord.Client):
                         filtered_data = {
                             'data': [
                                 entry for entry in entries 
-                                if float(entry.get('wagered', 0)) > 0
+                                if float(entry.get('wagered', 0)) > 0 and entry.get('name') != ' do**ev' # ignore specific name
                             ]
                         }
-                        logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} with wagers")
+
+                        # Add custom entry
+                        custom_entry = {
+                            'name': ' do**ev',
+                            'wagered': 1900.00,  # Set your custom wager amount
+                            'deposited': 0,
+                            'status': 'active'
+                        }
+                        filtered_data['data'].append(custom_entry)
+                        
+                        logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} after filtering")
                         return filtered_data
 
                     response_text = await response.text()
