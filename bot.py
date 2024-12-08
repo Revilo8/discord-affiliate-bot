@@ -90,7 +90,7 @@ class LeaderboardBot(discord.Client):
                         filtered_data = {
                             'data': [
                                 entry for entry in entries 
-                                if float(entry.get('wagered', 0)) > 0 and entry.get('name') != 'dovkev' # ignore specific name
+                                if float(entry.get('wagered', 0)) > 0 and entry.get('name') != 'do**ev' # ignore specific name
                             ]
                         }
 
