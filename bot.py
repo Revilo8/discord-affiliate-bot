@@ -94,14 +94,14 @@ class LeaderboardBot(discord.Client):
                             ]
                         }
 
-                        # Add custom entry
-                        custom_entry = {
-                            'name': ' do**ev',
-                            'wagered': 1900.00,  # Set your custom wager amount
-                            'deposited': 0,
-                            'status': 'active'
-                        }
-                        filtered_data['data'].append(custom_entry)
+                        # # Add custom entry
+                        # custom_entry = {
+                        #     'name': ' do**ev',
+                        #     'wagered': 1900.00,  # Set your custom wager amount
+                        #     'deposited': 0,
+                        #     'status': 'active'
+                        # }
+                        # filtered_data['data'].append(custom_entry)
                         
                         logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} after filtering")
                         return filtered_data
@@ -165,6 +165,8 @@ class LeaderboardBot(discord.Client):
             time_remaining = end_date - datetime.datetime.now()
             days_remaining = time_remaining.days
             hours_remaining = time_remaining.seconds // 3600
+            seconds_remaining = time_remaining.seconds
+            minutes_remaining = (seconds_remaining % 3600) // 60
             
             # embed = discord.Embed(
             #     title="🏆 X.Fun Leaderboard 🏆",
@@ -175,7 +177,11 @@ class LeaderboardBot(discord.Client):
 
             embed = discord.Embed(
                 title="🏆 X.Fun Leaderboard 🏆",
-                description=f"Top Wagers - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 15 minutes",
+                description=(
+                    f"Top Wagers - Last {days} days\n"
+                    f"Leaderboard ends in: {days_remaining}d {hours_remaining}h {minutes_remaining}m\n"
+                    f"Updates every 15 minutes"
+                ),
                 color=discord.Color.gold(),
                 timestamp=datetime.datetime.now()
             )
@@ -305,12 +311,20 @@ class LeaderboardBot(discord.Client):
             try:
                 # Check if leaderboard has ended
                 if current_time > end_date:
-                    channels_to_remove.append(channel_id)
+                    data = await self.fetch_affiliate_data(start_time, end_time)
+                    if data:
+                        if board_type == 'tickets':
+                            embed = self.create_tickets_embed(data, days, end_date)
+                        else:
+                            embed = self.create_leaderboard_embed(data, days, end_date)
                     try:
-                        await message.edit(content="🏁 Leaderboard event has ended! 🏁")
+                        await message.edit(content="🏁 Leaderboard has ended! 🏁")
                         logger.info(f"Ended leaderboard in channel {channel_id}")
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.error(f"Error updating final message: {e}")
+
+                    channels_to_remove.append(channel_id)
+                    logger.info(f"Ended leaderboard in channel {channel_id}")
                     continue
 
                 # Update leaderboard
@@ -361,17 +375,17 @@ async def leaderboard(interaction: discord.Interaction, days: int):
         await interaction.response.defer()
 
         # Calculate time window once when creating leaderboard
-        # start_time = int(datetime.datetime.now().timestamp() * 1000)
-        # end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
+        start_time = int(datetime.datetime.now().timestamp() * 1000)
+        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
+        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
 
-        # Set fixed dates in UTC
-        start_date = datetime.datetime(2024, 12, 6, 20, 0) # 20 UTC = 21 CET
-        end_date = datetime.datetime(2024, 12, 13, 20, 0)
+        # # Set fixed dates in UTC
+        # start_date = datetime.datetime(2024, 12, 6, 20, 0) # 20 UTC = 21 CET
+        # end_date = datetime.datetime(2024, 12, 13, 20, 0)
         
-        # Convert to milliseconds timestamp
-        start_time = int(start_date.timestamp() * 1000)
-        end_time = int(end_date.timestamp() * 1000)
+        # # Convert to milliseconds timestamp
+        # start_time = int(start_date.timestamp() * 1000)
+        # end_time = int(end_date.timestamp() * 1000)
         
 
         # Initial data fetch with the fixed time window
