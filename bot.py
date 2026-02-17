@@ -1,486 +1,177 @@
-import os
-import datetime
-from typing import Optional
-import logging
-import asyncio
 import discord
-from discord import app_commands
-from discord.ext import tasks
-import aiohttp
+from discord.ext import commands, tasks
+import requests
+import asyncio
+from datetime import datetime, timedelta
+import json
+import os
 from dotenv import load_dotenv
-
-
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('discord_bot')
 
 # Load environment variables
 load_dotenv()
 
-# Bot configuration
+# Configuration
 TOKEN = os.getenv('DISCORD_TOKEN')
 API_KEY = os.getenv('API_KEY')
-API_BASE_URL = os.getenv('API_BASE_URL')
-AFFILIATE_CODE = os.getenv('AFFILIATE_CODE')
+API_BASE_URL = "https://api.csgodiamonds.com/affiliate/leaderboard/referrals"
 
-# Check environment variables
-if not all([TOKEN, API_KEY, API_BASE_URL, AFFILIATE_CODE]):
-    logger.error("Missing environment variables!")
-    if not TOKEN: logger.error("DISCORD_TOKEN is missing")
-    if not API_KEY: logger.error("API_KEY is missing")
-    if not API_BASE_URL: logger.error("API_BASE_URL is missing")
-    if not AFFILIATE_CODE: logger.error("AFFILIATE_CODE is missing")
-    raise ValueError("Missing required environment variables")
+# Bot setup
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-class LeaderboardBot(discord.Client):
-    def __init__(self):
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
-        intents.presences = True
-        super().__init__(intents=intents)
-        self.tree = app_commands.CommandTree(self)
-        self.active_leaderboards = {}
-        logger.info("Bot initialized")
+# Store active leaderboards
+active_leaderboards = {}
 
-    async def setup_hook(self):
-        try:
-            # Force sync commands to all guilds
-            await self.tree.sync()
-            self.update_leaderboards.start()
-            logger.info("Slash commands synced and update task started")
-        except Exception as e:
-            logger.error(f"Setup hook error: {e}")
-            raise
-
-    async def fetch_affiliate_data(self, start_time: int, end_time: int) -> Optional[dict]:
-        logger.info(f"Fetching affiliate data from {datetime.datetime.fromtimestamp(start_time/1000)} to {datetime.datetime.fromtimestamp(end_time/1000)}")
-        
-        logger.info(f"Start time: {datetime.datetime.fromtimestamp(start_time/1000)}")
-        logger.info(f"End time: {datetime.datetime.fromtimestamp(end_time/1000)}")
-        
-        async with aiohttp.ClientSession() as session:
-            headers = {
-                "accept": "application/json",
-                "x-apikey": API_KEY
-            }
-            params = {
-                'code': AFFILIATE_CODE,
-                'gt': str(start_time),
-                'lt': str(end_time),
-                'by': 'createdAt',
-                'sort': 'desc',
-                'take': '1000',
-                'skip': '0'  # Changed to 0 as per example
-            }
-            
-            try:
-                url = f"{API_BASE_URL}/affiliate/external"
-                
-                async with session.get(url, 
-                                     headers=headers, 
-                                     params=params) as response:
-                    logger.info(f"API Response Status: {response.status}")
-                    
-                    if response.status == 200:
-                        data = await response.json()
-                        entries = data.get('data', [])
-                        # Filter out entries with zero wager
-                        filtered_data = {
-                            'data': [
-                                entry for entry in entries 
-                                if float(entry.get('wagered', 0)) > 0 and entry.get('name') != 'do**ev' # ignore specific name
-                            ]
-                        }
-
-                        # # Add custom entry
-                        # custom_entry = {
-                        #     'name': ' do**ev',
-                        #     'wagered': 1900.00,  # Set your custom wager amount
-                        #     'deposited': 0,
-                        #     'status': 'active'
-                        # }
-                        # filtered_data['data'].append(custom_entry)
-                        
-                        logger.info(f"Fetched {len(entries)} entries, {len(filtered_data['data'])} after filtering")
-                        return filtered_data
-
-                    response_text = await response.text()
-                    logger.error(f"API request failed with status {response.status}")
-                    logger.error(f"Response text: {response_text}")
-                    return None
-            except Exception as e:
-                logger.error(f"Error fetching data: {str(e)}")
-                return None
-
-    def create_leaderboard_embed(self, data: dict, days: int, end_date: datetime.datetime) -> discord.Embed:
-        try:
-            # Get the data array from the response
-            entries = data.get('data', [])
-                
-            # Aggregate user data
-            user_stats = {}
-            for entry in entries:
-                username = entry.get('name', 'Unknown')
-                # deposited = float(entry.get('deposited', 0))
-                wagered = float(entry.get('wagered', 0))
-
-                # Skip users with no deposits (extra safety check)
-                # if deposited <= 0:
-                #     continue
-
-                if wagered <= 0:
-                    continue
-                
-                # if username not in user_stats:
-                #     user_stats[username] = {'deposits': 0}
-                # user_stats[username]['deposits'] = deposited
-
-                if username not in user_stats:
-                    user_stats[username] = {'wager': 0}
-                user_stats[username]['wager'] = wagered
-            
-            # If no valid data was processed
-            if not user_stats:
-                embed = discord.Embed(
-                    title="🏆 X.Fun Leaderboard 🏆",
-                    description="No data available for the specified time period",
-                    color=discord.Color.gold(),
-                    timestamp=datetime.datetime.now()
-                )
-                return embed
-                
-            # # Sort users by deposits
-            # top_users = sorted(user_stats.items(), 
-            #                  key=lambda x: x[1]['deposits'], 
-            #                  reverse=True)
-
-            # Sort users by wager
-            top_users = sorted(user_stats.items(), 
-                             key=lambda x: x[1]['wager'], 
-                             reverse=True)
-            
-            # Calculate time remaining
-            time_remaining = end_date - datetime.datetime.now()
-            days_remaining = time_remaining.days
-            hours_remaining = time_remaining.seconds // 3600
-            seconds_remaining = time_remaining.seconds
-            minutes_remaining = (seconds_remaining % 3600) // 60
-            
-            # embed = discord.Embed(
-            #     title="🏆 X.Fun Leaderboard 🏆",
-            #     description=f"Top Depositors - Last {days} days\nLeaderboard ends in: {days_remaining}d {hours_remaining}h\nUpdates every 15 minutes",
-            #     color=discord.Color.gold(),
-            #     timestamp=datetime.datetime.now()
-            # )
-
-            embed = discord.Embed(
-                title="🏆 X.Fun Leaderboard 🏆",
-                description=(
-                    f"Top Wagers - Last {days} days\n"
-                    f"Leaderboard ends in: {days_remaining}d {hours_remaining}h {minutes_remaining}m\n"
-                    f"Updates every 15 minutes"
-                ),
-                color=discord.Color.gold(),
-                timestamp=datetime.datetime.now()
-            )
-            
-            # Add user rankings
-            # for i, (username, stats) in enumerate(top_users, 1):
-            #     medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
-            #     embed.add_field(
-            #         name=f"{medal} #{i} {username}",
-            #         value=f"Deposits(coins): {stats['deposits']:,.2f}",
-            #         inline=False
-            #     )
-
-            for i, (username, stats) in enumerate(top_users, 1):
-                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
-                embed.add_field(
-                    name=f"{medal} #{i} {username}",
-                    value=f"Wager(coins): {stats['wager']:,.2f}",
-                    inline=False
-                )
-
-            # Add footer with timestamp
-            embed.set_footer(text=f"Last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
-            
-            return embed
-        except Exception as e:
-            logger.error(f"Error creating embed: {e}")
-            logger.error(f"Data that caused error: {data}")
-            raise
-
-    def create_tickets_embed(self, data: dict, days: int, end_date: datetime.datetime) -> discord.Embed:
-        try:
-            entries = data.get('data', [])
-            
-            # Aggregate user data
-            user_stats = {}
-            for entry in entries:
-                username = entry.get('name', 'Unknown')
-                deposited = float(entry.get('deposited', 0))
-
-                # Skip users with no deposits
-                if deposited <= 0:
-                    continue
-                
-                if username not in user_stats:
-                    user_stats[username] = {
-                        'deposits': deposited,
-                        'tickets': int(deposited / 10)  # 10 coins = 1 ticket
-                    }
-                else:
-                    user_stats[username]['deposits'] = deposited
-                    user_stats[username]['tickets'] = int(deposited / 10)
-            
-            # If no valid data was processed
-            if not user_stats:
-                embed = discord.Embed(
-                    title="🎫 X.Fun Tickets Leaderboard 🎫",
-                    description="No data available for the specified time period",
-                    color=discord.Color.gold(),
-                    timestamp=datetime.datetime.now()
-                )
-                return embed
-                
-            # Sort users by tickets
-            top_users = sorted(user_stats.items(), 
-                            key=lambda x: x[1]['tickets'], 
-                            reverse=True)[:10]
-            
-            # Calculate time remaining
-            time_remaining = end_date - datetime.datetime.now()
-            days_remaining = time_remaining.days
-            hours_remaining = time_remaining.seconds // 3600
-            
-            embed = discord.Embed(
-                title="🎫 X.Fun Tickets Leaderboard 🎫",
-                description=(
-                    f"Top Users - Last {days} days\n"
-                    f"Leaderboard ends in: {days_remaining}d {hours_remaining}h\n"
-                    f"Updates every 15 minutes\n"
-                    f"1 ticket = 10 coins deposited"
-                ),
-                color=discord.Color.gold(),
-                timestamp=datetime.datetime.now()
-            )
-            
-            # Add total stats
-            total_deposits = sum(stats['deposits'] for _, stats in user_stats.items())
-            total_tickets = sum(stats['tickets'] for _, stats in user_stats.items())
-            
-            embed.add_field(
-                name="📊 Total Stats",
-                value=f"Total Deposits: {total_deposits:,.2f} coins\nTotal Tickets: {total_tickets:,}",
-                inline=False
-            )
-            
-            # Add user rankings
-            for i, (username, stats) in enumerate(top_users, 1):
-                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
-                embed.add_field(
-                    name=f"{medal} #{i} {username}",
-                    value=f"Deposits: {stats['deposits']:,.2f} coins\nTickets: {stats['tickets']:,} 🎟️",
-                    inline=False
-                )
-
-            current_time = datetime.datetime.now()
-            embed.set_footer(text=f"Last updated: {current_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-            
-            return embed
-        except Exception as e:
-            logger.error(f"Error creating tickets embed: {e}")
-            logger.error(f"Data that caused error: {data}")
-            raise
-
-    @tasks.loop(minutes=15)
-    async def update_leaderboards(self):
-        current_time = datetime.datetime.now()
-        channels_to_remove = []
-
-        for channel_id, (message, end_date, days, start_time, end_time, board_type) in list(self.active_leaderboards.items()):
-            channel = self.get_channel(channel_id)
-            
-            if not channel:
-                logger.error(f"Could not find channel {channel_id}")
-                channels_to_remove.append(channel_id)
-                continue
-
-            try:
-                # Check if leaderboard has ended
-                if current_time > end_date:
-                    data = await self.fetch_affiliate_data(start_time, end_time)
-                    if data:
-                        if board_type == 'tickets':
-                            embed = self.create_tickets_embed(data, days, end_date)
-                        else:
-                            embed = self.create_leaderboard_embed(data, days, end_date)
-                    try:
-                        await message.edit(content="🏁 Leaderboard has ended! 🏁")
-                        logger.info(f"Ended leaderboard in channel {channel_id}")
-                    except Exception as e:
-                        logger.error(f"Error updating final message: {e}")
-
-                    channels_to_remove.append(channel_id)
-                    logger.info(f"Ended leaderboard in channel {channel_id}")
-                    continue
-
-                # Update leaderboard
-                data = await self.fetch_affiliate_data(start_time, end_time)
-                if data:
-                    if board_type == 'tickets':
-                        embed = self.create_tickets_embed(data, days, end_date)
-                    else:
-                        embed = self.create_leaderboard_embed(data, days, end_date)
-                    
-                    try:
-                        await message.edit(embed=embed)
-                        logger.info(f"Successfully updated leaderboard in channel {channel_id}")
-                    except Exception as e:
-                        logger.error(f"Error updating message: {e}")
-
-            except Exception as e:
-                logger.error(f"Error in update loop for channel {channel_id}: {e}")
-
-        # Remove ended leaderboards
-        for channel_id in channels_to_remove:
-            if channel_id in self.active_leaderboards:
-                del self.active_leaderboards[channel_id]
-                logger.info(f"Removed ended leaderboard from channel {channel_id}")
-
-    @update_leaderboards.before_loop
-    async def before_update_leaderboards(self):
-        await self.wait_until_ready()
-        logger.info("Bot is ready to start updating leaderboards")
-
-
-# Create bot instance
-client = LeaderboardBot()
-
-@client.tree.command(name="leaderboard", description="Start a leaderboard event for specified number of days")
-async def leaderboard(interaction: discord.Interaction, days: int):
-    logger.info(f"Leaderboard command received from {interaction.user} for {days} days")
-    try:
-        if days <= 0 or days > 30:
-            await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
-            return
-
-        if interaction.channel_id in client.active_leaderboards:
-            await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
-            return
-
-        # Acknowledge the interaction quickly
-        await interaction.response.defer()
-
-        # Calculate time window once when creating leaderboard
-        start_time = int(datetime.datetime.now().timestamp() * 1000)
-        end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        end_date = datetime.datetime.now() + datetime.timedelta(days=days)
-
-        # # Set fixed dates in UTC
-        # start_date = datetime.datetime(2024, 12, 6, 20, 0) # 20 UTC = 21 CET
-        # end_date = datetime.datetime(2024, 12, 13, 20, 0)
-        
-        # # Convert to milliseconds timestamp
-        # start_time = int(start_date.timestamp() * 1000)
-        # end_time = int(end_date.timestamp() * 1000)
-        
-
-        # Initial data fetch with the fixed time window
-        data = await client.fetch_affiliate_data(start_time, end_time)
-        if not data:
-            await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
-            return
-
-        embed = client.create_leaderboard_embed(data, days, end_date)
-
-        message = await interaction.channel.send(embed=embed)
-        # Store the time window with other leaderboard data
-        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time, 'leaderboard')
-        
-        # Send a temporary confirmation
-        await interaction.followup.send("Leaderboard started! It will update every 15 minutes.", ephemeral=True)
-        logger.info(f"Successfully started leaderboard in channel {interaction.channel_id}")
+def fetch_leaderboard_data(start_date, end_date):
+    """Fetch data from the API"""
+    payload = {
+        "key": API_KEY,
+        "type": "WAGER",
+        "after": int(start_date.timestamp() * 1000),
+        "before": int(end_date.timestamp() * 1000)
+    }
     
-    except Exception as e:
-        logger.error(f"Error processing leaderboard command: {e}")
-        await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
-        
-@client.tree.command(name="tickets", description="Start a tickets leaderboard event for specified number of days")
-async def tickets(interaction: discord.Interaction, days: int):
-    logger.info(f"Tickets leaderboard command received from {interaction.user} for {days} days")
     try:
-        if days <= 0 or days > 30:
-            await interaction.response.send_message("Please specify a number of days between 1 and 30.", ephemeral=True)
-            return
-
-        if interaction.channel_id in client.active_leaderboards:
-            await interaction.response.send_message("There's already an active leaderboard in this channel!", ephemeral=True)
-            return
-
-        await interaction.response.defer()
-
-        # Set fixed dates in UTC
-        start_date = datetime.datetime(2024, 11, 21, 18, 0)  # 18:00 UTC = 19:00 CET
-        end_date = datetime.datetime(2024, 11, 28, 18, 0)    # 18:00 UTC = 19:00 CET
-        
-        # Convert to milliseconds timestamp
-        start_time = int(start_date.timestamp() * 1000)
-        end_time = int(end_date.timestamp() * 1000)
-
-
-        # # Calculate time window
-        # start_time = int(datetime.datetime.now().timestamp() * 1000)
-        # end_time = int((datetime.datetime.now() + datetime.timedelta(days=days)).timestamp() * 1000)
-        # end_date = datetime.datetime.now() + datetime.timedelta(days=days)
-
-        data = await client.fetch_affiliate_data(start_time, end_time)
-        if not data:
-            await interaction.followup.send("Unable to fetch leaderboard data. Please try again later.")
-            return
-
-        embed = client.create_tickets_embed(data, days, end_date)
-        
-        message = await interaction.channel.send(embed=embed)
-        client.active_leaderboards[interaction.channel_id] = (message, end_date, days, start_time, end_time, 'tickets')
-        
-        await interaction.followup.send("Tickets leaderboard started! It will update every 15 minutes.", ephemeral=True)
-        logger.info(f"Successfully started tickets leaderboard in channel {interaction.channel_id}")
-    
-    except Exception as e:
-        logger.error(f"Error processing tickets command: {e}")
-        await interaction.followup.send("An error occurred while processing your request.", ephemeral=True)
-
-@client.tree.command(name="sync", description="Sync commands")
-@app_commands.checks.has_permissions(administrator=True)
-async def sync(interaction: discord.Interaction):
-    await client.tree.sync()
-    await interaction.response.send_message("Commands synced!", ephemeral=True)
-
-@client.tree.command(name="clearleaderboard", description="Clear active leaderboard in this channel")
-@app_commands.checks.has_permissions(administrator=True)
-async def clearleaderboard(interaction: discord.Interaction):
-    try:
-        if interaction.channel_id in client.active_leaderboards:
-            del client.active_leaderboards[interaction.channel_id]
-            await interaction.response.send_message("Leaderboard cleared!", ephemeral=True)
+        response = requests.post(API_BASE_URL, json=payload)
+        if response.status_code == 200:
+            return response.json()
         else:
-            await interaction.response.send_message("No active leaderboard in this channel.", ephemeral=True)
+            print(f"API Error: {response.status_code}")
+            return None
     except Exception as e:
-        logger.error(f"Error clearing leaderboard: {e}")
-        await interaction.response.send_message("Error clearing leaderboard.", ephemeral=True)
+        print(f"Error fetching data: {e}")
+        return None
 
+def create_leaderboard_embed(data, days_remaining):
+    """Create Discord embed with leaderboard data"""
+    embed = discord.Embed(
+        title="🏆 CSGODiamonds Wager Leaderboard 🏆",
+        description=f"Days remaining: {days_remaining}",
+        color=discord.Color.gold(),
+        timestamp=datetime.now()
+    )
+    
+    if not data or not data.get('success'):
+        embed.add_field(name="No Data", value="Unable to fetch leaderboard data", inline=False)
+        return embed
+    
+    # Get users from the API response
+    users = data.get('data', [])
+    
+    if not users:
+        embed.add_field(name="No Entries", value="No data available for this period", inline=False)
+        return embed
+    
+    # Filter out entries without username (to avoid duplicates/broken entries)
+    valid_users = sorted(
+        [user for user in users if user.get('username')],
+        key=lambda x: float(x.get('totalAmount', 0)),
+        reverse=True
+    )[:10]
+    
+    for i, user in enumerate(valid_users, 1):
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "👑"
+        username = user.get('username', 'Unknown')
+        amount = float(user.get('totalAmount', 0))
+        
+        embed.add_field(
+            name=f"{medal} #{i} {username}",
+            value=f"Total Wager: ${amount:,.2f}",
+            inline=False
+        )
+    
+    embed.set_footer(text=f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    return embed
 
-@client.event
+@bot.event
 async def on_ready():
-    logger.info(f'Bot is logged in as {client.user}')
-    logger.info('-------------------')
+    print(f'{bot.user} is online!')
+    try:
+        # Force sync commands
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} command(s)")
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
+    update_leaderboards.start()
+
+@bot.hybrid_command(name="leaderboard", description="Start a leaderboard for specified days")
+async def leaderboard(ctx, days: int):
+    """Start a leaderboard command"""
+    if days <= 0 or days > 30:
+        await ctx.send("Please specify days between 1 and 30.")
+        return
+    
+    if ctx.channel.id in active_leaderboards:
+        await ctx.send("There's already an active leaderboard in this channel!")
+        return
+    
+    # Calculate dates
+    start_date = datetime.now()
+    end_date = start_date + timedelta(days=days)
+    
+    # Fetch initial data
+    data = fetch_leaderboard_data(start_date, end_date)
+    embed = create_leaderboard_embed(data, days)
+    
+    # Send embed
+    message = await ctx.send(embed=embed)
+    
+    # Store leaderboard info
+    active_leaderboards[ctx.channel.id] = {
+        'message': message,
+        'start_date': start_date,
+        'end_date': end_date,
+        'days': days
+    }
+    
+    await ctx.send(f"Leaderboard started for {days} days! Updates every hour.", ephemeral=True)
+
+@bot.hybrid_command(name="stop", description="Stop the leaderboard in this channel")
+async def stop_leaderboard(ctx):
+    """Stop leaderboard command"""
+    if ctx.channel.id in active_leaderboards:
+        del active_leaderboards[ctx.channel.id]
+        await ctx.send("Leaderboard stopped!")
+    else:
+        await ctx.send("No active leaderboard in this channel.")
+
+@tasks.loop(hours=1)
+async def update_leaderboards():
+    """Update all active leaderboards every hour"""
+    current_time = datetime.now()
+    channels_to_remove = []
+    
+    for channel_id, leaderboard_info in active_leaderboards.items():
+        # Check if leaderboard has ended
+        if current_time > leaderboard_info['end_date']:
+            channels_to_remove.append(channel_id)
+            try:
+                await leaderboard_info['message'].edit(content="🏁 Leaderboard has ended!")
+            except:
+                pass
+            continue
+        
+        # Update leaderboard
+        try:
+            days_remaining = (leaderboard_info['end_date'] - current_time).days
+            data = fetch_leaderboard_data(leaderboard_info['start_date'], leaderboard_info['end_date'])
+            embed = create_leaderboard_embed(data, days_remaining)
+            await leaderboard_info['message'].edit(embed=embed)
+        except Exception as e:
+            print(f"Error updating leaderboard in channel {channel_id}: {e}")
+    
+    # Remove ended leaderboards
+    for channel_id in channels_to_remove:
+        if channel_id in active_leaderboards:
+            del active_leaderboards[channel_id]
+
+@update_leaderboards.before_loop
+async def before_update_leaderboards():
+    await bot.wait_until_ready()
 
 if __name__ == "__main__":
-    try:
-        logger.info("Starting bot...")
-        client.run(TOKEN)
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
+    if not TOKEN:
+        print("Please set DISCORD_TOKEN in your .env file")
+    else:
+        bot.run(TOKEN)
