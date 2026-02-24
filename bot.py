@@ -84,7 +84,7 @@ def create_leaderboard_embed(data, days_remaining):
         
         embed.add_field(
             name=f"{medal} #{i} {username}",
-            value=f"Total Wager: ${amount:,.2f}",
+            value=f"Total Wager: {amount:,.2f}C",
             inline=False
         )
     
@@ -117,7 +117,7 @@ async def leaderboard(ctx, days: int):
     # Hardcoded start date: February 23, 2026 6 PM CET
     from zoneinfo import ZoneInfo
     start_date = datetime(2026, 2, 23, 18, 0, 0, tzinfo=ZoneInfo("Europe/Prague"))
-    end_date = start_date + timedelta(days=days)
+    end_date = datetime(2026, 3, 9, 18, 0, 0, tzinfo=ZoneInfo("Europe/Prague"))
     
     # # Calculate dates
     # start_date = datetime.now()
@@ -128,11 +128,11 @@ async def leaderboard(ctx, days: int):
     embed = create_leaderboard_embed(data, days)
     
     # Send embed
-    message = await ctx.send(embed=embed)
+    message = await ctx.channel.send(embed=embed)
     
     # Store leaderboard info
     active_leaderboards[ctx.channel.id] = {
-        'message': message,
+        'message_id': message.id,
         'start_date': start_date,
         'end_date': end_date,
         'days': days
@@ -162,7 +162,10 @@ async def update_leaderboards():
         if current_time > leaderboard_info['end_date']:
             channels_to_remove.append(channel_id)
             try:
-                await leaderboard_info['message'].edit(content="🏁 Leaderboard has ended!")
+                channel = bot.get_channel(channel_id)
+                if channel:
+                    message = await channel.fetch_message(leaderboard_info['message_id'])
+                    await message.edit(content="🏁 Leaderboard has ended!", embed=None)
             except:
                 pass
             continue
@@ -172,7 +175,13 @@ async def update_leaderboards():
             days_remaining = (leaderboard_info['end_date'] - current_time).days
             data = fetch_leaderboard_data(leaderboard_info['start_date'], leaderboard_info['end_date'])
             embed = create_leaderboard_embed(data, days_remaining)
-            await leaderboard_info['message'].edit(embed=embed)
+
+            channel = bot.get_channel(channel_id)
+            if not channel:
+                continue
+            ## Re-fetch the message before editing
+            message = await channel.fetch_message(leaderboard_info['message_id'])
+            await message.edit(embed=embed)
         except Exception as e:
             print(f"Error updating leaderboard in channel {channel_id}: {e}")
     
