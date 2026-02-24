@@ -20,6 +20,13 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+OWNER_ID = 485412913230905345
+
+def is_owner():
+    async def predicate(ctx):
+        return ctx.author.id == OWNER_ID
+    return commands.check(predicate)
+
 # Store active leaderboards
 active_leaderboards = {}
 
@@ -96,6 +103,7 @@ async def on_ready():
     update_leaderboards.start()
 
 @bot.hybrid_command(name="leaderboard", description="Start a leaderboard for specified days")
+@is_owner()
 async def leaderboard(ctx, days: int):
     """Start a leaderboard command"""
     if days <= 0 or days > 30:
@@ -105,10 +113,15 @@ async def leaderboard(ctx, days: int):
     if ctx.channel.id in active_leaderboards:
         await ctx.send("There's already an active leaderboard in this channel!")
         return
-    
-    # Calculate dates
-    start_date = datetime.now()
+
+    # Hardcoded start date: February 23, 2026 6 PM CET
+    from zoneinfo import ZoneInfo
+    start_date = datetime(2026, 2, 23, 18, 0, 0, tzinfo=ZoneInfo("Europe/Prague"))
     end_date = start_date + timedelta(days=days)
+    
+    # # Calculate dates
+    # start_date = datetime.now()
+    # end_date = start_date + timedelta(days=days)
     
     # Fetch initial data
     data = fetch_leaderboard_data(start_date, end_date)
@@ -128,6 +141,7 @@ async def leaderboard(ctx, days: int):
     await ctx.send(f"Leaderboard started for {days} days! Updates every hour.", ephemeral=True)
 
 @bot.hybrid_command(name="stop", description="Stop the leaderboard in this channel")
+@is_owner()
 async def stop_leaderboard(ctx):
     """Stop leaderboard command"""
     if ctx.channel.id in active_leaderboards:
