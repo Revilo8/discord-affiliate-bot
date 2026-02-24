@@ -153,7 +153,8 @@ async def stop_leaderboard(ctx):
 @tasks.loop(hours=1)
 async def update_leaderboards():
     """Update all active leaderboards every hour"""
-    current_time = datetime.now()
+    from zoneinfo import ZoneInfo
+    current_time = datetime.now(ZoneInfo("Europe/Prague"))
     channels_to_remove = []
     
     for channel_id, leaderboard_info in active_leaderboards.items():
